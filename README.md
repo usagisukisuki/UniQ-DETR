@@ -113,19 +113,77 @@ M-OWODB Task 1 の値です（report 側、推論はすべて topk のみ）。�
 ### Installation
 
 ```bash
+git clone --recursive https://github.com/usagisukisuki/UniQ-DETR.git
+cd UniQ-DETR
+# clone 済みなら: git submodule update --init
 uv sync          # .venv（Python 3.11, torch 2.8.0+cu128）
 ```
 
-- `third_party/RT-DETR` は、lyuwenyu/RT-DETR を無改変で使っています。拡張はすべて `owod/` のサブクラスです。
+サブモジュール（`third_party/`）：
+
+| パス | リポジトリ | コミット | 用途 |
+|---|---|---|---|
+| `third_party/RT-DETR` | [lyuwenyu/RT-DETR](https://github.com/lyuwenyu/RT-DETR) | `df2a96c` | 検出器の本体。無改変で使い、拡張はすべて `owod/` のサブクラス |
+| `third_party/PROB` | [orrzohar/PROB](https://github.com/orrzohar/PROB) | `b1d7fe6` | M-OWODB の分割ファイル（`data/OWOD/ImageSets/TOWOD`）と、評価器の照合 |
+
 - バックボーンは、ImageNet 事前学習の重みだけを使います。COCO 事前学習の RT-DETR 重みは、未知クラスを見ているので使いません。
+
+### Data
+
+M-OWODB（Task 1）は、PASCAL VOC と COCO から作ります。画像は次の 3 つをダウンロードして、任意の場所に置いてください。
+
+| データ | ダウンロード | 使う部分 |
+|---|---|---|
+| PASCAL VOC 2007 / 2012 | [VOCtrainval_06-Nov-2007.tar](http://host.robots.ox.ac.uk/pascal/VOC/voc2007/VOCtrainval_06-Nov-2007.tar)、[VOCtest_06-Nov-2007.tar](http://host.robots.ox.ac.uk/pascal/VOC/voc2007/VOCtest_06-Nov-2007.tar)、[VOCtrainval_11-May-2012.tar](http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_11-May-2012.tar) | 学習（既知 20 クラス）とテストの VOC 部分 |
+| COCO 2017 val | [val2017.zip](http://images.cocodataset.org/zips/val2017.zip)、[annotations_trainval2017.zip](http://images.cocodataset.org/annotations/annotations_trainval2017.zip) | テストの COCO 部分（未知クラスを含む） |
+
+```bash
+# VOC 2007 test の XML（difficult フラグ）-> data/raw/voc07test/VOCdevkit/VOC2007/Annotations
+mkdir -p data/raw/voc07test && tar -xf VOCtest_06-Nov-2007.tar -C data/raw/voc07test
+
+# M-OWODB の注釈 -> data/mowodb/{t1_train,test}.json（画像は JSON 内の絶対パスで参照）
+uv run python -m scripts.prepare_mowodb \
+    --voc-img-dir <VOC の JPEGImages（2007 と 2012 をまとめたもの）> \
+    --voc-train-json <VOC 2007+2012 trainval の COCO 形式 JSON> \
+    --coco-val-json <COCO>/annotations/instances_val2017.json \
+    --coco-val-dir <COCO>/val2017
+```
+
+- 分割（どの画像を学習・テストに使うか）は、PROB の `TOWOD` の分割ファイルに従います。
+- `t1_train.json` は 16,551 枚・既知 20 クラスのみです。`test.json` は 10,246 枚（VOC07 test 4,952 + COCO val2017 5,294）で、未知 GT は 23,320 個です。
+- `--voc-train-json` には、VOC 2007+2012 trainval の注釈を COCO 形式（カテゴリ名は VOC のクラス名）にまとめた JSON を渡します。
+- 学習データに未知クラスの正解が混ざらないように、`OWODDetection(split='train')` が読み込み時に検査します（`owod/data/mowodb.py`）。
+
+### Baselines（任意）
+
+比較手法は、元の実装を読んで RT-DETRv2 に移植しています（`configs/baselines/`、`owod/`）。元のリポジトリは実行には不要で、移植の参照用です。
+読む場合は `third_party/baselines_src/` に clone してください（git の管理外）。
+
+```bash
+mkdir -p third_party/baselines_src && cd third_party/baselines_src
+git clone https://github.com/akshitac8/OW-DETR.git        && git -C OW-DETR checkout 3515ff8
+git clone https://github.com/scuwyh2000/RandBox.git       && git -C RandBox checkout 9b1f7d8
+git clone https://github.com/feifeiobama/OrthogonalDet.git && git -C OrthogonalDet checkout d36b8e5
+git clone https://github.com/xiaomabufei/SKDF.git          && git -C SKDF checkout c78c3b5
+```
+
+| 手法 | 元のリポジトリ | 移植先の設定 |
+|---|---|---|
+| OW-DETR | [akshitac8/OW-DETR](https://github.com/akshitac8/OW-DETR) | `configs/baselines/owdetr_rt.yml` |
+| PROB | [orrzohar/PROB](https://github.com/orrzohar/PROB)（サブモジュール） | `configs/b_prob_rt.yml` |
+| CAT | [xiaomabufei/SKDF](https://github.com/xiaomabufei/SKDF)（同じ著者のコード。カスケード復号と選択的探索はこれに従い、疑似ラベルは CAT の論文の式で実装） | `configs/baselines/cat_rt.yml` |
+| RandBox | [scuwyh2000/RandBox](https://github.com/scuwyh2000/RandBox) | `configs/baselines/randbox_rt.yml` |
+| OrthogonalDet | [feifeiobama/OrthogonalDet](https://github.com/feifeiobama/OrthogonalDet) | `configs/baselines/orthogonaldet_rt.yml` |
+
+- 評価器の照合（`tests/test_owod_eval_vs_prob.py`、`tools/prob_check/`）には、PROB の公式 Task 1 の重みを `third_party/prob_download/MOWODB/t1.pth` に置きます。重みは PROB の README のリンクから取得できます。
 
 ### Training and Evaluation
 
 GPU は `CUDA_VISIBLE_DEVICES` で指定します。学習は GPU 1 枚で、50 エポックに約 8 時間かかります。
 
 ```bash
-# 1. データ（M-OWODB Task 1）-> data/mowodb/{t1_train,test}.json
-uv run python -m scripts.prepare_mowodb
+# 1. データ（M-OWODB Task 1）-> data/mowodb/{t1_train,test}.json（引数は上の Data を参照）
+uv run python -m scripts.prepare_mowodb --voc-img-dir ... --voc-train-json ... --coco-val-json ... --coco-val-dir ...
 
 # 2. 疑似ラベルの教師：E2 と同じ構成を 2 エポックだけ学習（outputs/e2_pilot_bn/last.pth）
 uv run python tools/train.py -c configs/e2_obj.yml -u epoches=2 --output-dir outputs/e2_pilot_bn
