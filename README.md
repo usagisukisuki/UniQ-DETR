@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="figs/logo.png" alt="UniQ-DETR" width="600">
+  <img src="figs/logo.svg" alt="UniQ-DETR" width="600">
 </p>
 
 
@@ -10,7 +10,7 @@ This is the official implementation of UniQ-DETR: **Real-Time Open-World Object 
 - **NMS Free：** 推論は元の RT-DETRv2 と同じく topk だけです。NMS も重複除去も使いません。
 - **Unique Queries：** クラスによらない 1 対 1 ヘッド r を持ちます。r は、物体ごとに代表のクエリを 1 個だけ選ぶように学習するので、未知物体の重複も NMS なしで抑えられます。
 - **Self-Supervised Pseudo-Labels：** 学習初期の自分自身を教師にして、未知物体の疑似ラベルを作ります。外部のモデル（SAM など）は使いません。
-- **Performance：** M-OWODB Task 1 で **U-Recall 28.69**（Known AP50 63.53）、**約 107 FPS** です（RTX 4090、fp32、バッチ 1）。U-Recall は、NMS ありの比較手法も含めて最高です（OW-DETR-RT は NMS 0.5 で 27.83）。
+- **Performance：** M-OWODB Task 1 で **U-Recall 29.63**（Known AP50 63.78）、**約 107 FPS** です（RTX 4090、fp32、バッチ 1）。U-Recall は、NMS ありの比較手法も含めて最高です（OW-DETR-RT は NMS 0.5 で 27.83）。
 
 ## Records
 
@@ -21,7 +21,8 @@ M-OWODB Task 1 の値です（report 側、推論はすべて topk のみ）。�
 | 2026-10-28 | 案 G3 | 1 対 1 ヘッド r ＋ OW-DETR の疑似ラベル（300 クエリ） | 62.61 | 23.92 |
 | 2026-11-02 | G4-1 | 疑似ラベルを学習初期の自分自身を教師にしたものに置き換え | 62.17 | 25.99 |
 | 2026-11-04 | G4-4 | 600 クエリで学習 | 62.87 | 27.24 |
-| 2026-11-05 | **UniQ-DETR** | 900 クエリで推論、未知スコアに箱の面積の項を追加 | **63.53** | **28.69** |
+| 2026-11-05 | G4-4（推論の改良） | 900 クエリで推論、未知スコアに箱の面積の項を追加 | 63.53 | 28.69 |
+| 2026-11-06 | **UniQ-DETR**（G4-6） | r も疑似ラベルの箱で学習、未知スコアの r の指数を 0.5 → 1 | **63.78** | **29.63** |
 
 ## Results (WIP)
 
@@ -31,22 +32,22 @@ M-OWODB Task 1 の値です（report 側、推論はすべて topk のみ）。�
 - 選ぶ基準は「Known AP50 ≥ 61.51 のもとで U-Recall 最大」です。
 - 比較手法は、同じ RT-DETRv2・同じ学習レシピに移植したもの（`-RT`）です。値はそれぞれの最良の後処理でのものです（`analysis/G3_SUMMARY.md`）。
 
-| 手法 | 後処理 | Known AP50 | U-Recall | WI ↓ | A-OSE ↓ | FPS（fp32） |
+| Method | Post-Pro. | Known AP50 | U-Recall | WI ↓ | A-OSE ↓ | FPS（fp32） |
 |---|---|---:|---:|---:|---:|---:|
-| **UniQ-DETR** | **topk のみ** | 63.53 | **28.69** | 0.047 | 2,555 | 107 |
-| OW-DETR-RT | NMS 0.5 | 62.30 | 27.83 | 0.055 | 7,295 | 95〜98 |
-| CAT-RT | NMS 0.7 | 62.50 | 26.28 | 0.057 | 11,327 | 70 |
-| PROB-RT | NMS 0.7 | 62.26 | 24.66 | 0.070 | 4,812 | 93〜95 |
-| RandBox-RT | NMS 0.5 | 61.85 | 24.03 | 0.036 | 5,336 | 13.5※ |
-| OrthogonalDet-RT | NMS 0.5 | **65.22** | 19.45 | **0.029** | **1,993** | 12.0※ |
-| OW-DETR-RT | topk のみ | 62.52 | 23.74 | 0.055 | 3,165 | 109〜114 |
-| PROB-RT | topk のみ | 61.57 | 21.55 | 0.055 | 2,071 | 104〜109 |
-| CAT-RT | topk のみ | 61.92 | 15.11 | 0.048 | 2,168 | 91 |
+| **UniQ-DETR** | **topk** | 63.78 | **29.63** | 0.052 | 3,656 | 107 |
+| OW-DETR-RT | NMS (0.5) | 62.30 | 27.83 | 0.055 | 7,295 | 95〜98 |
+| CAT-RT | NMS (0.7) | 62.50 | 26.28 | 0.057 | 11,327 | 70 |
+| PROB-RT | NMS (0.7) | 62.26 | 24.66 | 0.070 | 4,812 | 93〜95 |
+| RandBox-RT | NMS (0.5) | 61.85 | 24.03 | 0.036 | 5,336 | 13.5※ |
+| OrthogonalDet-RT | NMS (0.5) | **65.22** | 19.45 | **0.029** | **1,993** | 12.0※ |
+| OW-DETR-RT | topk | 62.52 | 23.74 | 0.055 | 3,165 | 109〜114 |
+| PROB-RT | topk | 61.57 | 21.55 | 0.055 | 2,071 | 104〜109 |
+| CAT-RT | topk | 61.92 | 15.11 | 0.048 | 2,168 | 91 |
 
 ※ RandBox 系は元の推論（格子状の箱 10,000 個、NMS 0.6）での値です。
 
 注意点：
-- **w の選び方：** UniQ-DETR の w 8 は、Known AP50 に余裕を持たせて選んだ値です。tune 側の基準どおりに選ぶと w 12 になり、Known 61.94・U-Recall 29.16 です。
+- **w の選び方：** UniQ-DETR の w 12 は、Known AP50 に余裕を持たせて選んだ値です（tune 側で Known AP50 ≥ 63.5 のもとで U-Recall 最大）。tune 側の基準（≥ 61.51）どおりに選ぶと w 24 になり、Known 61.50・U-Recall 30.48 です。
 - **面積の項の公平性：** 未知スコアの面積の項を、比較手法にも掛けて確かめました。U-Recall の変化は −0.8〜+1.0pt で、最高が UniQ-DETR であることは変わりません。ただし、OrthogonalDet-RT の Known AP50 は 65.50 に上がります（`analysis/G4_PLAN.md` §6.6）。
 - **未達の目標：** Known AP50 は、OrthogonalDet-RT に及びません。
 
@@ -54,7 +55,7 @@ M-OWODB Task 1 の値です（report 側、推論はすべて topk のみ）。�
 
 ### Base model
 
-| 検出器 | バックボーン | 状態 |
+| Detector | Backbone | States |
 |---|---|---|
 | RT-DETRv2 | R50 | ✅ (WIP) |
 | RT-DETRv2 | R18 | 予定 |
@@ -78,7 +79,7 @@ M-OWODB Task 1 の値です（report 側、推論はすべて topk のみ）。�
 | 物体らしさ o | 全クエリの分布からの距離（BatchNorm 後の二乗ノルム、PROB と同じ） | 既知 GT に対応付いたクエリの d² を小さくする |
 | 既知以外 u | 既知クラスに対応付かないクエリか | 未マッチのクエリ = 1、対応付いたクエリ = 0（focal） |
 | 位置の当てはまり具合 q | 箱が物体にぴったり合っているか（クラス非依存の IoU 予測） | 既知 GT と IoU ≥ 0.3 のクエリだけ、IoU を目標に学習する |
-| **1 対 1 ヘッド r** | そのクエリが物体を代表する 1 個か（unique query） | 既知 GT に対応付いたクエリ = 1、同じ GT と IoU ≥ 0.5 の他のクエリ = 0、背景は損失なし |
+| **1 対 1 ヘッド r** | そのクエリが物体を代表する 1 個か（unique query） | 既知 GT と未知の疑似ラベルの箱に対応付いたクエリ = 1、同じ箱と IoU ≥ 0.5 の他のクエリ = 0、背景は損失なし |
 
 - **r がこの手法の中心です。**
   - DETR の既知クラスが NMS なしで重複しないのは、1 対 1 マッチングのおかげです。
@@ -91,7 +92,9 @@ M-OWODB Task 1 の値です（report 側、推論はすべて topk のみ）。�
   1. 学習画像ごとに、教師の予測を元画像と左右反転画像で得ます。
   2. 既知 GT と重ならない箱を候補にします。
   3. 反転一致度（反転画像の予測との最大 IoU）で順位を付け、上位 5 個を unknown の疑似ラベルにします。
-- **学習での使い方：** 疑似ラベル 1 個につき、最も重なる未マッチのクエリ 1 個を unknown クラスの正例にします。使い始めるのはエポック 9 からです。
+- **学習での使い方：**
+  - 疑似ラベル 1 個につき、最も重なる未マッチのクエリ 1 個を unknown クラスの正例にします。使い始めるのはエポック 9 からです。
+  - 1 対 1 ヘッド r も、疑似ラベルの箱で学習します（`OWCriterion.pseudo_primary`）。r が既知 GT だけで学習されていると、未知物体を覆うクエリの r が低くなり、取りこぼしの主な原因になっていました（取りこぼしの最良クエリの σ(r) 中央値 0.08 → 0.15）。
 
 ### 3. 600 クエリで学習し、推論は 900 クエリ
 
@@ -101,12 +104,12 @@ M-OWODB Task 1 の値です（report 側、推論はすべて topk のみ）。�
 ### 4. 推論のスコア
 
 - **既知の 20 列：** p(c)
-- **未知の 1 列：** w · o · σ(u) · q · σ(r)^0.5 · (箱の面積)^0.25
-  - 面積は 0〜1 に正規化した値で、w = 8 です。
+- **未知の 1 列：** w · o · σ(u) · q · σ(r) · (箱の面積)^0.25
+  - 面積は 0〜1 に正規化した値で、w = 12 です。
 - スコア行列 [900 × 21] 全体から、上位 100 件を出力します。
 - 追加の計算は、要素ごとの積だけです。
 
-面積の項は、r で重複を抑えた後に残る誤検出（小さな背景の断片）を押し下げます。この項で、U-Recall は 27.50 から 28.69〜29.16 に上がります。
+面積の項は、r で重複を抑えた後に残る誤検出（小さな背景の断片）を押し下げます。この項で、U-Recall は 28.62 から 30.48 に上がります（tune 側の基準どおりに w を選んだ場合）。
 
 ## Getting Started
 
@@ -192,23 +195,24 @@ uv run python tools/train.py -c configs/e2_obj.yml -u epoches=2 --output-dir out
 uv run python tools/make_pseudo_unk.py -c configs/e2_obj.yml -r outputs/e2_pilot_bn/last.pth \
     --ann data/mowodb/t1_train.json --out-prefix data/pseudo_unk/e2ep2_cons --ks 5
 
-# 4. 学習（600 クエリ）-> outputs/g4_4/best.pth
-uv run python tools/train.py -c configs/g4_4.yml
+# 4. 学習（600 クエリ、r も疑似ラベルで学習）-> outputs/g4_6/best.pth
+uv run python tools/train.py -c configs/g4_6.yml
 
 # 5. 評価（900 クエリ、tune / report の 2 分割、report 側の値を表示）
-uv run python tools/sweep_pp.py -c configs/uniq_detr.yml -r outputs/g4_4/best.pth --grid unk_weight=8,12
+uv run python tools/sweep_pp.py -c configs/uniq_detr.yml -r outputs/g4_6/best.pth --grid unk_weight=12,24
 
 # 6. 速度（バッチ 1、モデル＋後処理、fp32 と AMP）
-uv run python tools/bench_fps.py -c configs/uniq_detr.yml -r outputs/g4_4/best.pth
+uv run python tools/bench_fps.py -c configs/uniq_detr.yml -r outputs/g4_6/best.pth
 ```
 
-- `scripts/run_g4_4.sh` は、手順 4 とその後の推論設定の掃引・分析をまとめて行います。
+- `scripts/run_g4_6.sh` は、手順 4 とその後の推論設定の掃引・分析をまとめて行います。
 - `-u key=value` で、YAML の設定を上書きできます。
-- テスト全体で評価するだけなら、`tools/train.py -c configs/uniq_detr.yml --test-only -r outputs/g4_4/best.pth` です。2 分割しないので、上の表の値とは少し違います。
+- テスト全体で評価するだけなら、`tools/train.py -c configs/uniq_detr.yml --test-only -r outputs/g4_6/best.pth` です。2 分割しないので、上の表の値とは少し違います。
 
 ### Configs
 
 `configs/uniq_detr.yml`（推論）
+→ `g4_6.yml`（r も疑似ラベルで学習）
 → `g4_4.yml`（600 クエリ）
 → `g4_1.yml`（疑似ラベル）
 → `m0_primary_owdetr.yml`（r、unknown クラス）
@@ -220,8 +224,9 @@ uv run python tools/bench_fps.py -c configs/uniq_detr.yml -r outputs/g4_4/best.p
 | 案 G | `configs/m0_primary.yml` | + 1 対 1 ヘッド r |
 | 案 G3 | `configs/m0_primary_owdetr.yml` | + unknown クラスと OW-DETR の学習信号 |
 | G4-1 | `configs/g4_1.yml` | 疑似ラベルを、学習初期の自分自身を教師にしたものに置き換え |
-| G4-4 | `configs/g4_4.yml` | 600 クエリで学習（UniQ-DETR の学習設定） |
-| **UniQ-DETR** | `configs/uniq_detr.yml` | G4-4 の重みを 900 クエリで推論、面積の項を含む未知スコア |
+| G4-4 | `configs/g4_4.yml` | 600 クエリで学習 |
+| G4-6 | `configs/g4_6.yml` | + r も疑似ラベルの箱で学習（UniQ-DETR の学習設定） |
+| **UniQ-DETR** | `configs/uniq_detr.yml` | G4-6 の重みを 900 クエリで推論、面積の項を含む未知スコア |
 
 ## Project Structure
 
