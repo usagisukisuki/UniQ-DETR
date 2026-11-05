@@ -1,0 +1,5 @@
+# M0 weights evaluated with 600 decoder queries instead of 300 (post-hoc, no retraining; docs/BASELINES_RESULTS.md §11.4)
+__include__: ['./f1_quality_50ep.yml']
+output_dir: ./outputs/m0_nq600
+OWRTDETRTransformerv2:
+  num_queries: 600

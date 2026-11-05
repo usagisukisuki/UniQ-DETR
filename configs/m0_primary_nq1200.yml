@@ -1,0 +1,5 @@
+# G weights evaluated with 1200 decoder queries (post-hoc; docs/BASELINES_RESULTS.md §11.6)
+__include__: ['./m0_primary.yml']
+output_dir: ./outputs/m0_primary_nq1200
+OWRTDETRTransformerv2:
+  num_queries: 1200

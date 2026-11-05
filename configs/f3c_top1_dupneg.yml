@@ -1,0 +1,7 @@
+# F3c: F3b + v positive = only the best-overlapping query of each held-out object, and duplicates of known objects
+# are v negatives (v = 'primary detection of an unlabelled object'). Fine-tuned 10 ep from F1-50ep (-t).
+__include__: ['./f3b_heldout10.yml']
+output_dir: ./outputs/f3c_top1_dupneg
+OWCriterion:
+  unkobj_pos_top1: True
+  unkobj_dup_neg: True

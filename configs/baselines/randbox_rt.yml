@@ -1,0 +1,35 @@
+# RandBox on RT-DETRv2 (docs/BASELINES_RTDETR.md §2.4, docs/baselines/RANDBOX_SPEC.md).
+# Random boxes replace encoder query selection (500 per image per iteration, truncated normal, w,h >= 0.02; content =
+# mean encoder feature in the box); no denoising; SimOTA dynamic-k matching per decoder layer; sigmoid focal (weight 2),
+# L1 5, GIoU 2, normalised by matched queries; unknown = top-10 queries by sum_c sigmoid (minus each GT's best query),
+# second focal loss beta 0.1 after 500 iterations. Inference: 10^4 grid boxes in chunks of 500, class-wise NMS 0.6,
+# top-100 (the original has no cap; top-100 is the common protocol here).
+__include__: ['../include/rtdetrv2_r50_ow.yml']
+output_dir: ./outputs/b_randbox_rt
+num_classes: 21
+OWRTDETRTransformerv2:
+  num_denoising: 0
+  random_queries: True
+  random_train_n: 500
+  random_chunk: 500
+  random_grid: 10
+OWCriterion:
+  matcher:
+    type: SimOTAMatcher
+    cost_class: 2
+    cost_bbox: 5
+    cost_giou: 2
+    alpha: 0.25
+    gamma: 2.0
+    ota_k: 5
+  weight_dict: {loss_focal: 2, loss_bbox: 5, loss_giou: 2, loss_randbox_unk: 0.1}
+  losses: ['focal', 'boxes']
+  alpha: 0.25
+  gamma: 2.0
+  randbox_unk_k: 10
+  randbox_unk_start: 500
+OWPostProcessor:
+  unk_score: cls_last
+  known_score: cls
+  unk_weight: 1.0
+  nms_iou: 0.6

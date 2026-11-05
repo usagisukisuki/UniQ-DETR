@@ -1,0 +1,8 @@
+# F3b: F3 with 10 held-out classes per iteration (more diverse 'unlabelled object' positives) and negatives only
+# for queries far from every GT (IoU < 0.1). Fine-tuned 10 ep from outputs/f1_quality_50ep/best.pth (-t).
+__include__: ['./f3_heldout.yml']
+output_dir: ./outputs/f3b_heldout10
+OWRTDETRTransformerv2:
+  heldout_k: 10
+OWCriterion:
+  unkobj_neg_iou: 0.1

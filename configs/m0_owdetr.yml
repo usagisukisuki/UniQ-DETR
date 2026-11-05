@@ -1,0 +1,22 @@
+# A: M0 + OW-DETR's training signal (docs/BASELINES_RESULTS.md §7). The classifier gets an extra 'unknown' class
+# (index 20); from epoch 9 the top-5 unmatched queries per image and layer by in-box backbone-C4 activation are
+# positives for that class (VFL) and for a foreground-objectness branch (weight 0.05), as in OW-DETR-RT. Inference is
+# M0's: known = p(c) over the 20 known logits, unknown = o * sigmoid(u) * q with duplicate suppression.
+__include__: ['./f1_quality_50ep.yml']
+output_dir: ./outputs/m0_owdetr
+num_classes: 21
+model: OWRTDETR
+OWRTDETR:
+  backbone: PResNet
+  encoder: HybridEncoder
+  decoder: OWRTDETRTransformerv2
+  attn_map_level: 1
+OWRTDETRTransformerv2:
+  use_nc_obj: True
+OWCriterion:
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_obj: 0.3, loss_unk: 1, loss_quality: 1, loss_ncobj: 0.05}
+  losses: ['vfl', 'boxes', 'obj', 'unk', 'quality', 'ncobj']
+  attn_pseudo_k: 5
+  attn_pseudo_start: 9
+OWPostProcessor:
+  known_slots: 20

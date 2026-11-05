@@ -1,0 +1,6 @@
+[submodule "third_party/RT-DETR"]
+	path = third_party/RT-DETR
+	url = https://github.com/lyuwenyu/RT-DETR.git
+[submodule "third_party/PROB"]
+	path = third_party/PROB
+	url = https://github.com/orrzohar/PROB.git

@@ -1,0 +1,7 @@
+# G4-4 (analysis/G4_PLAN.md): G4-1 trained and evaluated with 600 decoder queries, so that the extra queries also get
+# one-to-one matching and r's supervision (more coverage of unknown objects without more duplicates). No NMS.
+# G4-3's one-to-many branch is not included (it lowered U-Recall and open-world Known AP50, §6.4).
+__include__: ['./g4_1.yml']
+output_dir: ./outputs/g4_4
+OWRTDETRTransformerv2:
+  num_queries: 600

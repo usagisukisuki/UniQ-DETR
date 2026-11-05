@@ -1,0 +1,13 @@
+# F3: 5 random known classes per iteration are hidden from every known-object loss (they look like real unknowns)
+# and train an 'unlabelled object' head v (positives = queries on them, negatives = queries far from all GT).
+# Built on F1; fine-tuned 10 epochs from outputs/f1_quality_50ep/best.pth (-t). Compare with configs/f1c_ft.yml.
+__include__: ['./f1_quality_50ep.yml']
+output_dir: ./outputs/f3_heldout
+epoches: 10
+OWRTDETRTransformerv2:
+  use_unkobj: True
+  heldout_k: 5
+OWCriterion:
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_obj: 0.3, loss_unk: 1, loss_quality: 1, loss_unkobj: 1}
+OWPostProcessor:
+  unk_score: learned_q_v

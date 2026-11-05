@@ -1,0 +1,41 @@
+# M-OWODB Task 1: 20 known (VOC) classes. Unknown GT exists only in test.json.
+task: detection
+num_classes: 20
+
+owod_eval:
+  gt_json: data/mowodb/test.json
+  num_known: 20
+
+train_dataloader:
+  type: DataLoader
+  dataset:
+    type: OWODDetection
+    img_folder: ''
+    ann_file: data/mowodb/t1_train.json
+    split: train
+    num_known: 20
+    transforms:
+      type: Compose
+      ops: ~
+  shuffle: True
+  num_workers: 8
+  drop_last: True
+  collate_fn:
+    type: BatchImageCollateFunction
+
+val_dataloader:
+  type: DataLoader
+  dataset:
+    type: OWODDetection
+    img_folder: ''
+    ann_file: data/mowodb/test.json
+    split: test
+    num_known: 20
+    transforms:
+      type: Compose
+      ops: ~
+  shuffle: False
+  num_workers: 8
+  drop_last: False
+  collate_fn:
+    type: BatchImageCollateFunction

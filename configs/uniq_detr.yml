@@ -1,0 +1,11 @@
+# UniQ-DETR inference (README.md): weights trained with configs/g4_4.yml (600 queries), evaluated with 900 decoder
+# queries; unknown = w * o * sigmoid(u) * q * sigmoid(r)^0.5 * (box area)^0.25, w = 8; top-100 only (no NMS, no dedup).
+__include__: ['./g4_4.yml']
+output_dir: ./outputs/g4_4
+OWRTDETRTransformerv2:
+  num_queries: 900
+OWPostProcessor:
+  unk_r_gamma: 0.5
+  unk_q_exp: 1.0
+  unk_area_exp: 0.25
+  unk_weight: 8.0

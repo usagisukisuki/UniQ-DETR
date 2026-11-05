@@ -1,0 +1,16 @@
+# G3: G (one-to-one primary head r, strictly NMS-free unknowns) + A's OW-DETR training signal (unknown class 20 with
+# backbone-C4 attention pseudo-labels from epoch 9, ncobj weight 0.05). The pseudo-labels put more candidates on
+# unknown objects; r (supervised by known-GT matching only) is meant to suppress the duplicates this brings.
+# Inference: known = p(c) over 20 known logits; unknown = o * sigmoid(u) * q * sigmoid(r); no unk_dup, no NMS.
+__include__: ['./m0_owdetr.yml']
+output_dir: ./outputs/m0_primary_owdetr
+OWRTDETRTransformerv2:
+  use_nc_obj: True
+  use_primary: True
+OWCriterion:
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_obj: 0.3, loss_unk: 1, loss_quality: 1, loss_ncobj: 0.05, loss_primary: 1}
+  losses: ['vfl', 'boxes', 'obj', 'unk', 'quality', 'ncobj', 'primary']
+  primary_dup_iou: 0.5
+OWPostProcessor:
+  unk_score: learned_qr
+  unk_dup_iou: ~

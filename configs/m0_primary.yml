@@ -1,0 +1,15 @@
+# G: M0 + class-agnostic one-to-one 'primary query' head r (docs/BASELINES_RESULTS.md §11.5), so that the unknown
+# score needs no NMS or duplicate suppression, as in the original RT-DETR (top-k only). r: target 1 for the matched
+# query of each known GT, 0 for its duplicates (unmatched, IoU >= 0.5 with a known GT), no loss elsewhere.
+# Inference: known = p(c); unknown = o * sigmoid(u) * q * sigmoid(r); no unk_dup, no NMS.
+__include__: ['./f1_quality_50ep.yml']
+output_dir: ./outputs/m0_primary
+OWRTDETRTransformerv2:
+  use_primary: True
+OWCriterion:
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_obj: 0.3, loss_unk: 1, loss_quality: 1, loss_primary: 1}
+  losses: ['vfl', 'boxes', 'obj', 'unk', 'quality', 'primary']
+  primary_dup_iou: 0.5
+OWPostProcessor:
+  unk_score: learned_qr
+  unk_dup_iou: ~

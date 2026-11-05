@@ -1,0 +1,19 @@
+# OrthogonalDet on RT-DETRv2, built on RandBox-RT (docs/BASELINES_RTDETR.md §2.5, docs/baselines/ORTHOGONALDET_SPEC.md).
+# Polar head per decoder layer (objectness = BN of |f|, class = Linear(LN(f)) over 80 known slots + raw unknown),
+# synthesised unknown (Eq. 3), p_joint = softmax * p_obj used by the focal loss / matcher / unknown selection /
+# inference, decorrelation loss weight 1, unknown loss beta 0.1 from iteration 0. Inference: known x 0.75 (unknown x 2
+# is absorbed by unk_weight), class-wise NMS 0.6, top-100.
+__include__: ['./randbox_rt.yml']
+output_dir: ./outputs/b_orthogonaldet_rt
+num_classes: 81
+OWRTDETRTransformerv2:
+  polar_head: True
+  polar_slots: 80
+OWCriterion:
+  weight_dict: {loss_focal: 2, loss_bbox: 5, loss_giou: 2, loss_randbox_unk: 0.1, loss_decorr: 1.0}
+  randbox_unk_start: 0
+  decorr: True
+OWPostProcessor:
+  known_slots: 20
+  known_scale: 0.75
+  unk_weight: 2.0

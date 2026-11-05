@@ -1,0 +1,14 @@
+# G4-1 (analysis/G4_PLAN.md): G3 with the OW-DETR attention pseudo-labels replaced by offline boxes from an early teacher
+# (E2 epoch 2, flip-consistency top-5 per image, tools/make_pseudo_unk.py). From epoch 9, per layer each pseudo box makes
+# its best-overlapping unmatched query (IoU >= 0.5) an 'unknown' positive for the class-20 VFL and the ncobj branch;
+# one positive per pseudo box. Everything else (r supervised by known GT only, inference) is G3's.
+__include__: ['./m0_primary_owdetr.yml']
+output_dir: ./outputs/g4_1
+OWRTDETRTransformerv2:
+  pseudo_label: 20
+OWCriterion:
+  pseudo_score: ext
+  pseudo_ext_iou: 0.5
+train_dataloader:
+  dataset:
+    ann_file: data/pseudo_unk/e2ep2_cons_k5.json

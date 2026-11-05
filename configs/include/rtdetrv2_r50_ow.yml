@@ -1,0 +1,93 @@
+# RT-DETRv2-R50 with open-world modules. Base for E0/E2/E3/E4 (each experiment toggles C1-C4).
+__include__: [
+  './mowodb_t1.yml',   # dataset first: later includes add the augmentation ops
+  '../../third_party/RT-DETR/rtdetrv2_pytorch/configs/runtime.yml',
+  '../../third_party/RT-DETR/rtdetrv2_pytorch/configs/rtdetrv2/include/dataloader.yml',
+  '../../third_party/RT-DETR/rtdetrv2_pytorch/configs/rtdetrv2/include/optimizer.yml',
+  '../../third_party/RT-DETR/rtdetrv2_pytorch/configs/rtdetrv2/include/rtdetrv2_r50vd.yml',
+]
+
+model: RTDETR
+criterion: OWCriterion
+postprocessor: OWPostProcessor
+
+RTDETR:
+  backbone: PResNet
+  encoder: HybridEncoder
+  decoder: OWRTDETRTransformerv2
+
+# ImageNet-pretrained backbone ONLY (never COCO-pretrained detector weights: they have seen the unknown classes)
+PResNet:
+  pretrained: True
+
+OWRTDETRTransformerv2:
+  feat_channels: [256, 256, 256]
+  feat_strides: [8, 16, 32]
+  hidden_dim: 256
+  num_levels: 3
+  num_layers: 6
+  num_queries: 300
+  num_denoising: 100
+  label_noise_ratio: 0.5
+  box_noise_scale: 1.0
+  eval_idx: -1
+  num_points: [4, 4, 4]
+  cross_attn_method: default
+  query_select_method: default
+  use_objectness: False
+  obj_cov_type: full
+  obj_momentum: 0.1
+  obj_shrinkage: 0.001
+  obj_interval: 50
+  obj_temperature: 1.3
+
+OWCriterion:
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_obj: 0.3}
+  losses: ['vfl', 'boxes']
+  alpha: 0.75
+  gamma: 2.0
+  bg_ignore_topk: 0
+  matcher:
+    type: HungarianMatcher
+    weight_dict: {cost_class: 2, cost_bbox: 5, cost_giou: 2}
+    alpha: 0.25
+    gamma: 2.0
+
+OWPostProcessor:
+  num_top_queries: 100
+  unk_score: none
+  known_score: cls
+
+# --- schedule (plan App. A): 50 epochs, AdamW lr 1e-4 / backbone 1e-5, wd 1e-4
+epoches: 50
+eval_freq: 5
+checkpoint_freq: 10
+use_amp: True
+use_ema: True
+sync_bn: False
+print_freq: 200
+
+optimizer:
+  type: AdamW
+  params:
+    -
+      params: '^(?=.*backbone)(?!.*norm).*$'
+      lr: 0.00001
+    -
+      params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
+      weight_decay: 0.
+  lr: 0.0001
+  betas: [0.9, 0.999]
+  weight_decay: 0.0001
+
+train_dataloader:
+  dataset:
+    transforms:
+      policy:
+        epoch: 48   # strong aug off for the last 2 epochs (upstream: 71/72)
+  collate_fn:
+    stop_epoch: 48
+  total_batch_size: 16
+
+val_dataloader:
+  total_batch_size: 32

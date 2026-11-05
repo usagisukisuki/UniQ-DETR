@@ -1,0 +1,10 @@
+# Baseline PROB on RT-DETRv2 (docs/BASELINES_RTDETR.md). Training is E2 (configs/e2_obj.yml): PROB's objectness
+# (BatchNorm over all queries, positive-only likelihood loss) and PROB's 'unknown' class (unmatched queries as
+# positives, focal loss with empty_weight 0.1). Inference follows PROB: known = o * p(c), unknown = o * sigmoid(u).
+# Only unk_weight is tuned (same procedure for every baseline).
+__include__: ['./e2_obj.yml']
+output_dir: ./outputs/e2_obj
+OWPostProcessor:
+  unk_score: learned
+  known_score: obj_cls
+  unk_weight: 1.0

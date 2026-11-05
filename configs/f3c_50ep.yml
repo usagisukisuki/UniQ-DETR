@@ -1,0 +1,11 @@
+# F3c trained from scratch for 50 epochs (fair comparison with F1-50ep). Inference set to the setting chosen on
+# the tune half for the 10-epoch F3c: unknown = o * sigmoid(u) * q (v unused), duplicate suppression IoU 0.7, w 1.0;
+# re-selected after training with tools/sweep_pp.py.
+__include__: ['./f3c_top1_dupneg.yml']
+output_dir: ./outputs/f3c_50ep
+epoches: 50
+OWPostProcessor:
+  unk_score: learned_q
+  unk_weight: 1.0
+  unk_dup_iou: 0.7
+  unk_dup_cls_p: null

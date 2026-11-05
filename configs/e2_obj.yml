@@ -1,0 +1,18 @@
+# E2: C1 + C2 (PROB-style objectness and learned unknown logit; see docs/E2_SATURATION.md)
+__include__: ['./include/rtdetrv2_r50_ow.yml']
+output_dir: ./outputs/e2_obj
+OWRTDETRTransformerv2:
+  use_objectness: True
+  use_unk_logit: True
+  # C2 as in the PROB implementation (docs/E2_SATURATION.md): d2 = ||BatchNorm1d(q, affine=False)||^2
+  # over all decoder queries (batch statistics with gradients in training, running statistics at eval)
+  obj_cov_type: bn
+  obj_shrinkage: 0.00001
+OWCriterion:
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_obj: 0.3, loss_unk: 1}
+  losses: ['vfl', 'boxes', 'obj', 'unk']
+  obj_stats: all
+OWPostProcessor:
+  unk_score: learned
+  unk_weight: 0.5          # chosen on the tune half of the test set (tools/sweep_unk.py, docs/PART1_RESULTS.md)
+  known_score: cls          # p(c) only: o·p halves known scores and cedes top-100 slots to unknowns (docs/E2_SATURATION.md §6)

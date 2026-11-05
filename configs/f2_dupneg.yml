@@ -1,0 +1,7 @@
+# F2: duplicate-aware unknown logit -- unmatched queries with IoU >= 0.3 to a known GT get target 0 in loss_unk
+# (docs/NEXT_STEPS.md). Fine-tuned from E2 for 10 epochs (-t outputs/e2_obj/best.pth).
+__include__: ['./e2_obj.yml']
+output_dir: ./outputs/f2_dupneg
+epoches: 10
+OWCriterion:
+  unk_neg_iou: 0.3

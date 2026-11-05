@@ -1,0 +1,12 @@
+# experiment outputs, datasets and local environments are not tracked
+outputs/
+data/
+.venv/
+__pycache__/
+*.pyc
+*.pth
+# third-party code: RT-DETR and PROB are submodules; the rest is downloaded locally
+third_party/baselines_src/
+third_party/prob_data/
+third_party/prob_download/
+third_party/prob_eval_out/

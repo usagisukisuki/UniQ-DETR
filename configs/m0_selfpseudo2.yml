@@ -1,0 +1,8 @@
+# B2: B (configs/m0_selfpseudo.yml) + one-to-one assignment for unknowns, so no NMS is needed at inference:
+# the 5 pseudo positives per image and layer are pairwise IoU < 0.5, and unmatched queries overlapping a pseudo
+# positive with IoU >= 0.6 (its duplicates) get target 0 for the unknown logit u.
+__include__: ['./m0_selfpseudo.yml']
+output_dir: ./outputs/m0_selfpseudo2
+OWCriterion:
+  pseudo_excl_iou: 0.5
+  pseudo_dup_neg_iou: 0.6

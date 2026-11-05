@@ -1,0 +1,6 @@
+# F1 + F2: quality head (o * sigmoid(u) * q) and duplicate-aware unknown logit. F2 alone used IoU 0.3 and lost
+# unknowns that overlap known objects; here only near-duplicates (IoU >= 0.5) are negatives. Fine-tuned from E2.
+__include__: ['./f1_quality.yml']
+output_dir: ./outputs/f12_quality_dupneg
+OWCriterion:
+  unk_neg_iou: 0.5

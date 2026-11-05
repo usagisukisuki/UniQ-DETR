@@ -1,0 +1,5 @@
+# G4-4 weights (trained with 600 queries) evaluated with 1200 decoder queries (analysis/G4_PLAN.md 6.6, plan A)
+__include__: ['./g4_4.yml']
+output_dir: ./outputs/g4_4
+OWRTDETRTransformerv2:
+  num_queries: 1200

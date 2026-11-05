@@ -1,0 +1,25 @@
+# OW-DETR on RT-DETRv2 (docs/BASELINES_RTDETR.md §2.2, docs/baselines/OWDETR_SPEC.md).
+# Classifier = 20 known + 'unknown' (index 20). Attention-driven pseudo-unknowns: top-5 unmatched queries per image
+# and decoder layer by the mean backbone-C4 activation inside the box, from epoch 9; they train the classifier and the
+# foreground-objectness branch only. Objectness weight 0.05 (OW-DETR cls 2 : NC 0.1, rescaled to VFL weight 1);
+# not used at inference.
+__include__: ['../include/rtdetrv2_r50_ow.yml']
+output_dir: ./outputs/b_owdetr_rt
+num_classes: 21
+model: OWRTDETR
+OWRTDETR:
+  backbone: PResNet
+  encoder: HybridEncoder
+  decoder: OWRTDETRTransformerv2
+  attn_map_level: 1
+OWRTDETRTransformerv2:
+  use_nc_obj: True
+OWCriterion:
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_ncobj: 0.05}
+  losses: ['vfl', 'boxes', 'ncobj']
+  attn_pseudo_k: 5
+  attn_pseudo_start: 9
+OWPostProcessor:
+  unk_score: cls_last
+  known_score: cls
+  unk_weight: 1.0

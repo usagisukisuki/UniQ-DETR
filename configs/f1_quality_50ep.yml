@@ -1,0 +1,11 @@
+# F1 trained from scratch for 50 epochs (fair comparison with E2). Inference: unknown = o * sigmoid(u) * q with
+# duplicate suppression (IoU >= 0.7 with a query of max p >= 0.1 whose class this query also scores p >= 0.05),
+# w = 1.0 -- selected on the tune half among 162 post-processing settings (tools/sweep_pp.py, docs/NEXT_STEPS.md).
+__include__: ['./f1_quality.yml']
+output_dir: ./outputs/f1_quality_50ep
+epoches: 50
+OWPostProcessor:
+  unk_weight: 1.0
+  unk_dup_iou: 0.7
+  unk_dup_tau: 0.1
+  unk_dup_cls_p: 0.05

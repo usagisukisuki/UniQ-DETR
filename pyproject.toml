@@ -1,0 +1,33 @@
+[project]
+name = "owod"
+version = "0.1.0"
+description = "RT-DETRv2 open-world object detection + iterative vocabulary expansion"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "torch==2.8.0",
+    "torchvision==0.23.0",
+    "faster-coco-eval>=1.6.6",
+    "PyYAML",
+    "tensorboard",
+    "scipy",
+    "packaging",
+    "pycocotools",
+    "onnx",
+    "numpy",
+    "pillow",
+    "tqdm",
+    "matplotlib",
+    "selectivesearch>=0.4",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true

@@ -1,0 +1,8 @@
+# G2: G (configs/m0_primary.yml) + confident-background negatives for the one-to-one head r: queries with IoU < 0.3
+# to every known GT whose objectness o is in the lowest half of such queries in the image get r target 0 (this
+# background term is averaged separately and added to the one-to-one term).
+__include__: ['./m0_primary.yml']
+output_dir: ./outputs/m0_primary_bg
+OWCriterion:
+  primary_bg_frac: 0.5
+  primary_bg_iou: 0.3

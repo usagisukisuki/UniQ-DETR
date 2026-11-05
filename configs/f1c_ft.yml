@@ -1,0 +1,4 @@
+# F1c: control for F3 -- F1 (50 ep) fine-tuned 10 more epochs with nothing changed (-t outputs/f1_quality_50ep/best.pth)
+__include__: ['./f1_quality_50ep.yml']
+output_dir: ./outputs/f1c_ft
+epoches: 10

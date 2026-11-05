@@ -1,0 +1,4 @@
+# F0: control for F1/F2 -- E2 fine-tuned 10 more epochs with nothing changed (run with -t outputs/e2_obj/best.pth)
+__include__: ['./e2_obj.yml']
+output_dir: ./outputs/f0_ft
+epoches: 10

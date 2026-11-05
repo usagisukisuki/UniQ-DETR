@@ -1,0 +1,10 @@
+# B: as A (configs/m0_owdetr.yml), but the 5 pseudo-unknown queries per image and layer are the unmatched queries with
+# the highest detached own unknown score o * sigmoid(u) * sigmoid(q) (M0's inference score) instead of the highest
+# C4 activation; queries with IoU >= 0.5 to a known GT (duplicates / fragments of known objects) are not eligible.
+__include__: ['./m0_owdetr.yml']
+output_dir: ./outputs/m0_selfpseudo
+OWRTDETR:
+  attn_map_level: ~
+OWCriterion:
+  pseudo_score: unk
+  pseudo_known_iou: 0.5

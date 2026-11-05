@@ -1,0 +1,12 @@
+# G4-3 (analysis/G4_PLAN.md): G4-1 + a training-only one-to-many branch (H-DETR hybrid matching) for Known AP50.
+# The encoder's top-900 proposals form a separate query group, masked from the one-to-one queries and DN in self-attention,
+# Hungarian-matched to the known GT repeated 3 times; known-class VFL (20 columns) and box losses only, every layer.
+# Inference uses the 300 one-to-one queries exactly as G4-1 (no NMS, same cost).
+__include__: ['./g4_1.yml']
+output_dir: ./outputs/g4_3
+OWRTDETRTransformerv2:
+  o2m_queries: 900
+OWCriterion:
+  o2m_k: 3
+  o2m_weight: 1.0
+  o2m_known_slots: 20

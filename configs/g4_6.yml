@@ -1,0 +1,7 @@
+# G4-6 (analysis/G4_PLAN.md 6.6): G4-4 (600 queries) + the one-to-one head r also trained on the offline pseudo-unknown
+# boxes: the query assigned to a pseudo box gets r = 1, other queries with IoU >= primary_dup_iou to it get r = 0.
+# Plan C showed covered-but-missed unknowns differ from the hits mainly by a low sigma(r) (median 0.08 vs 0.47).
+__include__: ['./g4_4.yml']
+output_dir: ./outputs/g4_6
+OWCriterion:
+  pseudo_primary: True
