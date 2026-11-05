@@ -3,16 +3,14 @@
 </p>
 
 
-<h1 align="center">UniQ-DETR: Real-Time Open-World Object Detection with Unique Queries for Unknown Objects</h1>
-
 ## Highlights
 
-UniQ-DETR は、RT-DETRv2 を土台にしたオープンワールド物体検出器（OWOD）です。既知の 20 クラスを検出しながら、学習で見ていない物体を「unknown」として検出します。
+This is the official implementation of UniQ-DETR: **Real-Time Open-World Object Detection with Unique Queries for Unknown Objects**
 
-- **NMS なし：** 推論は元の RT-DETRv2 と同じく topk だけです。NMS も重複除去も使いません。
+- **NMS Free：** 推論は元の RT-DETRv2 と同じく topk だけです。NMS も重複除去も使いません。
 - **Unique Queries：** クラスによらない 1 対 1 ヘッド r を持ちます。r は、物体ごとに代表のクエリを 1 個だけ選ぶように学習するので、未知物体の重複も NMS なしで抑えられます。
-- **自己教師の疑似ラベル：** 学習初期の自分自身を教師にして、未知物体の疑似ラベルを作ります。外部のモデル（SAM など）は使いません。
-- **性能：** M-OWODB Task 1 で **U-Recall 28.69**（Known AP50 63.53）、**約 107 FPS** です（RTX 4090、fp32、バッチ 1）。U-Recall は、NMS ありの比較手法も含めて最高です（OW-DETR-RT は NMS 0.5 で 27.83）。
+- **Self-Supervised Pseudo-Labels：** 学習初期の自分自身を教師にして、未知物体の疑似ラベルを作ります。外部のモデル（SAM など）は使いません。
+- **Performance：** M-OWODB Task 1 で **U-Recall 28.69**（Known AP50 63.53）、**約 107 FPS** です（RTX 4090、fp32、バッチ 1）。U-Recall は、NMS ありの比較手法も含めて最高です（OW-DETR-RT は NMS 0.5 で 27.83）。
 
 ## Records
 
