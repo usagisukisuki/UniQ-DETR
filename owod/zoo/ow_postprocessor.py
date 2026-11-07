@@ -55,7 +55,7 @@ class OWPostProcessor(nn.Module):
                  unk_dup_area_ratio=None, unk_dup_cls_p=None, unk_dup_tau_hi=None, unk_v_gamma=1.0,
                  known_slots=None, known_scale=1.0, nms_iou=None, nms_pre=10000, unk_self_iou=None, unk_r_gamma=1.0,
                  unk_maxp_beta=0.0, unk_punk_delta=0.0, unk_o_exp=1.0, unk_u_exp=1.0, unk_q_exp=1.0,
-                 unk_notk_beta=0.0, unk_area_exp=0.0):
+                 unk_notk_beta=0.0, unk_area_exp=0.0, known_r_gamma=0.0, one_label=False):
         super().__init__()
         assert unk_score in ('c1', 'maha', 'msp', 'energy', 'learned', 'learned_q', 'su_q',
                              'v', 'su_v', 'learned_v', 'learned_q_v', 'learned_qr', 'cls_last', 'cls_last_closed', 'none')
@@ -95,6 +95,11 @@ class OWPostProcessor(nn.Module):
         # unknown objects well (AUROC 0.795, analysis/G4_PLAN.md 6.1); 0 = off
         self.unk_area_exp = unk_area_exp
         self.unk_o_exp, self.unk_u_exp, self.unk_q_exp = unk_o_exp, unk_u_exp, unk_q_exp   # learned_qr exponents
+        # A-OSE (analysis/G4_PLAN.md, G4-8): known scores x sigmoid(r)^known_r_gamma pushes down the known outputs of
+        # duplicate queries (0 = off); one_label keeps only each query's highest final score (after unk_weight), so a
+        # query that reports an unknown object does not also report a low-score known class
+        self.known_r_gamma = known_r_gamma
+        self.one_label = one_label
         self.deploy_mode = False
 
     def extra_repr(self):
@@ -122,6 +127,8 @@ class OWPostProcessor(nn.Module):
             p = p[..., :k]
             maxp = p.max(-1).values
         known = p * o.unsqueeze(-1) if self.known_score == 'obj_cls' else p
+        if self.known_r_gamma:
+            known = known * outputs['pred_primary_logits'].float().sigmoid().unsqueeze(-1) ** self.known_r_gamma
         if self.unk_score == 'none':
             return known
         if self.unk_score == 'c1':
@@ -200,6 +207,8 @@ class OWPostProcessor(nn.Module):
             scores = torch.cat([scores[..., :-1], scores[..., -1:] * (~sup).unsqueeze(-1)], dim=-1)
         if has_unk and self.unk_weight != 1.0:
             scores = torch.cat([scores[..., :-1], scores[..., -1:] * self.unk_weight], dim=-1)
+        if self.one_label:
+            scores = scores * (scores == scores.max(-1, keepdim=True).values)
         ncls = scores.shape[-1]
         if has_unk and self.unk_slots is not None:
             nq, nk = scores.shape[1], ncls - 1
