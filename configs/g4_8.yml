@@ -1,0 +1,8 @@
+# G4-8 (analysis/G4_PLAN.md 6.6): G4-6 + the encoder proposals also learn the pseudo-unknown boxes. Small-object
+# coverage analysis: unknown objects are lost before the decoder, because the query selection (max class logit) has an
+# untrained unknown column (medium unknowns: 93.8% covered by some proposal, 65.0% selected) and the proposal boxes are
+# trained on known GT only (small unknowns: 55.8% covered by any proposal, known 80.0%).
+__include__: ['./g4_6.yml']
+output_dir: ./outputs/g4_8
+OWCriterion:
+  enc_pseudo: True

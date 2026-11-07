@@ -111,6 +111,7 @@ class OWCriterion(RTDETRCriterionv2):
                  unk_neg_iou=0.0,           # F2: unmatched queries with IoU >= this to a known GT -> unk target 0 (0 = off)
                  quality_min_iou=0.3,       # F1: queries with IoU >= this to a known GT get a quality target
                  pseudo_primary=False,      # G4-6: the one-to-one head r also learns the pseudo-unknown boxes
+                 enc_pseudo=False,          # G4-8: the encoder proposals (score + box) also match the pseudo-unknown boxes
                  primary_dup_iou=0.5,       # G: unmatched queries with IoU >= this to a known GT -> primary target 0
                  primary_bg_frac=0.0,       # G2: lowest-objectness fraction of far-from-GT queries -> target 0 (0 = off)
                  primary_bg_iou=0.3,        # G2: 'far from GT' = max IoU < this
@@ -148,6 +149,7 @@ class OWCriterion(RTDETRCriterionv2):
         self.quality_min_iou = quality_min_iou
         self.primary_dup_iou = primary_dup_iou
         self.pseudo_primary = pseudo_primary
+        self.enc_pseudo = enc_pseudo
         self.primary_bg_frac = primary_bg_frac
         self.primary_bg_iou = primary_bg_iou
         self._obj_heads = None
@@ -683,11 +685,24 @@ class OWCriterion(RTDETRCriterionv2):
                     t['labels'] = torch.zeros_like(t["labels"])
             else:
                 enc_targets = targets
+            match_targets = targets
+            if self.enc_pseudo and not class_agnostic and self._ext_boxes is not None \
+                    and self._epoch >= self.attn_pseudo_start:
+                # G4-8: pseudo-unknown boxes join the encoder's one-to-one matching as 'unknown' GT, so the unknown
+                # column of the query-selection score and the proposal boxes learn them (normaliser: known + pseudo, so
+                # the encoder losses keep their scale)
+                unk = self.num_classes - 1
+                enc_targets = match_targets = [
+                    {'labels': torch.cat([t['labels'], torch.full((len(pb),), unk, dtype=t['labels'].dtype, device=t['labels'].device)]),
+                     'boxes': torch.cat([t['boxes'], pb.to(t['boxes'].dtype)])} for t, pb in zip(targets, self._ext_boxes)]
+                enc_num_boxes = max(float(sum(len(t['labels']) for t in match_targets)) / get_world_size(), 1.)
+            else:
+                enc_num_boxes = num_boxes
             for i, aux in enumerate(outputs['enc_aux_outputs']):
-                indices = self.matcher(aux, targets)['indices']
+                indices = self.matcher(aux, match_targets)['indices']
                 self._e_step(aux, indices, heads)
                 ignore = self._bg_ignore_mask(aux, indices) if self.bg_ignore_enc else None
-                losses.update(self._apply_losses(aux, enc_targets, indices, num_boxes, f'_enc_{i}', ignore))
+                losses.update(self._apply_losses(aux, enc_targets, indices, enc_num_boxes, f'_enc_{i}', ignore))
             if class_agnostic:
                 self.num_classes = orig_num_classes
 

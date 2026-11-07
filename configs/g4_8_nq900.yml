@@ -1,0 +1,4 @@
+# G4-8 weights (trained with 600 queries) evaluated with 900 decoder queries
+__include__: ['./g4_8.yml']
+OWRTDETRTransformerv2:
+  num_queries: 900

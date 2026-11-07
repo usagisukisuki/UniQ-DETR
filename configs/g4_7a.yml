@@ -1,0 +1,8 @@
+# G4-7a (analysis/G4_PLAN.md 6.6): G4-6 with more pseudo-unknown boxes, top-10 per image by flip consistency
+# (E2 epoch 2 teacher). The pseudo labels help by keeping some GT-less queries from being suppressed as background,
+# so their recall on unknowns (V1 probe: k 5 13.9%, k 10 21.6%, k 15 26.3%) may matter more than their precision.
+__include__: ['./g4_6.yml']
+output_dir: ./outputs/g4_7a
+train_dataloader:
+  dataset:
+    ann_file: data/pseudo_unk/e2ep2_cons_k10.json
