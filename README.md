@@ -30,7 +30,7 @@ M-OWODB Task 1 の値です（report 側、推論はすべて topk のみ）。�
 評価の条件：
 - 1 画像 top-100 です。
 - テスト画像を名前の偶奇で 2 分割します。片方（tune 側）で推論設定を選び、もう片方（report 側）の値を示します。
-- 選ぶ基準は「Known AP50 ≥ 61.51 のもとで U-Recall 最大」です。
+- 選ぶ基準は、UniQ-DETR が「tune 側の Known AP50 ≥ 63.5 のもとで U-Recall 最大」（w 12）、比較手法が「Known AP50 ≥ 61.51 のもとで U-Recall 最大」です。
 - 比較手法は、同じ RT-DETRv2・同じ学習レシピに移植したもの（`-RT`）です。値はそれぞれの最良の後処理でのものです（`analysis/G3_SUMMARY.md`）。
 
 | Method | Post-Pro. | Known AP50 | U-Recall | WI ↓ | A-OSE ↓ | FPS（fp32） |
@@ -48,7 +48,7 @@ M-OWODB Task 1 の値です（report 側、推論はすべて topk のみ）。�
 ※ RandBox 系は元の推論（格子状の箱 10,000 個、NMS 0.6）での値です。
 
 注意点：
-- **w の選び方：** UniQ-DETR の w 12 は、Known AP50 に余裕を持たせて選んだ値です（tune 側で Known AP50 ≥ 63.5 のもとで U-Recall 最大）。tune 側の基準（≥ 61.51）どおりに選ぶと w 24 になり、Known 62.89・U-Recall 32.23・A-OSE 2,948 です。
+- **w の選び方：** UniQ-DETR は Known AP50 を優先して、基準を ≥ 63.5 に上げて w 12 を選んでいます。比較手法と同じ基準（≥ 61.51）で選ぶと w 24 になり、Known 62.89・U-Recall 32.23・A-OSE 2,948 です。
 - **面積の項の公平性：** 未知スコアの面積の項を、比較手法にも掛けて確かめました。U-Recall の変化は −0.8〜+1.0pt で、最高が UniQ-DETR であることは変わりません。ただし、OrthogonalDet-RT の Known AP50 は 65.50 に上がります（`analysis/G4_PLAN.md` §6.6）。
 - **未達の目標：** Known AP50 は、OrthogonalDet-RT に及びません。
 

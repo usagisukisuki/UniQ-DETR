@@ -90,6 +90,7 @@ class OWODEvaluator:
 
     def cleanup(self):
         self.preds = defaultdict(list)  # cls -> list of (image_id, score, x1, y1, x2, y2)
+        self.pred_ids = defaultdict(list)  # cls -> dataset image id of each prediction (multi-GPU merge)
 
     def update(self, predictions):
         """predictions: {image_id: {'boxes': [K,4] xyxy pixels, 'labels': [K], 'scores': [K]}}"""
@@ -97,8 +98,9 @@ class OWODEvaluator:
             boxes = p['boxes'].detach().float().cpu().numpy()
             labels = p['labels'].detach().cpu().numpy()
             scores = p['scores'].detach().float().cpu().numpy()
-            img_id = self.key[int(img_id)]
+            iid, img_id = int(img_id), self.key[int(img_id)]
             for (x1, y1, x2, y2), c, s in zip(boxes, labels, scores):
+                self.pred_ids[int(c)].append(iid)
                 # PROB rounding: score %.3f, box %.1f after +1 on xmin/ymin
                 # float() first: rounding a numpy float32 keeps float32 (4.4 -> 4.4000001), which flips IoU>0.5 ties
                 self.preds[int(c)].append((img_id, round(float(s), 3), round(float(x1) + 1., 1), round(float(y1) + 1., 1),
@@ -106,11 +108,24 @@ class OWODEvaluator:
 
     def synchronize_between_processes(self):
         from ..misc import all_gather_object
+        parts = all_gather_object((dict(self.preds), dict(self.pred_ids)))
+        if len(parts) == 1:
+            return
+        # multi-GPU: the DistributedSampler interleaves the images over the ranks and pads the last batch with repeats.
+        # Keep each image (dataset id; duplicate listings share the name key but not the id) from the first rank that
+        # has it, and restore the single-GPU (dataset) order, which the stable score sort uses to break ties.
+        pos = {i: n for n, i in enumerate(self.image_ids)}
+        owner = {}
+        for r, (_, ids) in enumerate(parts):
+            for v in ids.values():
+                for i in v:
+                    owner.setdefault(i, r)
         merged = defaultdict(list)
-        for d in all_gather_object(dict(self.preds)):
-            for k, v in d.items():
-                merged[k].extend(v)
-        self.preds = merged
+        for r, (preds, ids) in enumerate(parts):
+            for c, v in preds.items():
+                merged[c].extend((pos[i], det) for i, det in zip(ids[c], v) if owner[i] == r)
+        self.preds = defaultdict(list, {c: [det for _, det in sorted(v, key=lambda x: x[0])] for c, v in merged.items()})
+        self.pred_ids = defaultdict(list)
 
     def _eval_class(self, c):
         gt = self.gt[c]

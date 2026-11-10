@@ -1,0 +1,12 @@
+# G4-9 (analysis/G4_PLAN.md): G4-8 + the training-only one-to-many branch of G4-3 (H-DETR hybrid matching) for Known AP50.
+# G4-3 raised the closed-set Known AP50 by +0.55 on G4-1, but broke down when inference used more queries than training;
+# G4-8 is evaluated with its training count (600), so that failure does not apply. The o2m group is the encoder's top-600
+# proposals (G4-3: 900; the 600 one-to-one queries already use ~20GB), masked from the one-to-one queries and DN.
+__include__: ['./g4_8.yml']
+output_dir: ./outputs/g4_9
+OWRTDETRTransformerv2:
+  o2m_queries: 600
+OWCriterion:
+  o2m_k: 3
+  o2m_weight: 1.0
+  o2m_known_slots: 20

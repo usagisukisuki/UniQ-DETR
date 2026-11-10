@@ -127,6 +127,7 @@ class OWCriterion(RTDETRCriterionv2):
                  pseudo_excl_iou=0.0,       # B2: pseudo positives pairwise IoU < this (0 = off)
                  pseudo_dup_neg_iou=0.0,    # B2: duplicates of a pseudo positive -> unk target 0 (0 = off)
                  pseudo_ext_iou=0.5,        # G4-1: min IoU between a pseudo box and its positive query
+                 unkneg_iou=0.5,            # G4-11: loss_unkneg on queries with IoU >= this to a pseudo box (< to known GT)
                  o2m_k=0,                   # G4-3: GT repeats for the one-to-many group (0 = off)
                  o2m_weight=1.0,            # G4-3: weight of the one-to-many losses
                  o2m_known_slots=None,      # G4-3: classification columns used by the one-to-many VFL (None = all)
@@ -165,6 +166,7 @@ class OWCriterion(RTDETRCriterionv2):
         self.pseudo_excl_iou = pseudo_excl_iou
         self.pseudo_dup_neg_iou = pseudo_dup_neg_iou
         self.pseudo_ext_iou = pseudo_ext_iou
+        self.unkneg_iou = unkneg_iou
         self.o2m_k = o2m_k
         self.o2m_weight = o2m_weight
         self.o2m_known_slots = o2m_known_slots
@@ -295,6 +297,23 @@ class OWCriterion(RTDETRCriterionv2):
             return {'loss_quality': logits.sum() * 0.}
         loss = F.binary_cross_entropy_with_logits(logits[m].float(), tgt[m], reduction='sum')
         return {'loss_quality': loss / max(float(m.sum()), 1.)}
+
+    def loss_unkneg(self, outputs, targets, indices):
+        """G4-11: queries on a pseudo-unknown box (IoU >= unkneg_iou to it, < unkneg_iou to every known GT, not matched to
+        a known GT) get plain BCE towards 0 on their max known-class logit. In the VFL these negatives weigh
+        alpha * p^gamma, which is almost nothing at the 0.05-0.3 scores that make up A-OSE."""
+        pb = box_cxcywh_to_xyxy(outputs['pred_boxes'].detach().float())
+        sel = self._max_iou_to_gt(outputs, targets) < self.unkneg_iou
+        on_pseudo = torch.zeros_like(sel)
+        for b, eb in enumerate(self._ext_boxes):
+            if len(eb):
+                on_pseudo[b] = box_iou(pb[b], box_cxcywh_to_xyxy(eb.float()))[0].max(-1).values >= self.unkneg_iou
+        sel &= on_pseudo
+        sel[self._get_src_permutation_idx(indices)] = False
+        logit = outputs['pred_logits'][..., :self.num_classes - 1].float().max(-1).values      # [B, Q] known columns
+        if not sel.any():
+            return logit.sum() * 0.
+        return F.binary_cross_entropy_with_logits(logit[sel], torch.zeros_like(logit[sel]))
 
     def _loss_unkobj(self, outputs, held_boxes, all_boxes, known_boxes=None):
         logits = outputs['pred_unkobj_logits']                    # [B, Q]
@@ -561,6 +580,8 @@ class OWCriterion(RTDETRCriterionv2):
             l_dict = self.get_loss(loss, outputs, t, i, num_boxes, **meta)
             l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
             losses.update({k + suffix: v for k, v in l_dict.items()})
+        if cls_ti is not None and 'loss_unkneg' in self.weight_dict and self.pseudo_score == 'ext':
+            losses['loss_unkneg' + suffix] = self.weight_dict['loss_unkneg'] * self.loss_unkneg(outputs, targets, indices)
         return losses
 
     # ------------------------------------------------------------------ forward
@@ -695,7 +716,11 @@ class OWCriterion(RTDETRCriterionv2):
                 enc_targets = match_targets = [
                     {'labels': torch.cat([t['labels'], torch.full((len(pb),), unk, dtype=t['labels'].dtype, device=t['labels'].device)]),
                      'boxes': torch.cat([t['boxes'], pb.to(t['boxes'].dtype)])} for t, pb in zip(targets, self._ext_boxes)]
-                enc_num_boxes = max(float(sum(len(t['labels']) for t in match_targets)) / get_world_size(), 1.)
+                enc_num_boxes = torch.as_tensor([float(sum(len(t['labels']) for t in match_targets))],
+                                                device=outputs['pred_logits'].device)
+                if is_dist_available_and_initialized():
+                    torch.distributed.all_reduce(enc_num_boxes)
+                enc_num_boxes = torch.clamp(enc_num_boxes / get_world_size(), min=1).item()
             else:
                 enc_num_boxes = num_boxes
             for i, aux in enumerate(outputs['enc_aux_outputs']):

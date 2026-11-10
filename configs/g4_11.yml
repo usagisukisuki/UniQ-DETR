@@ -1,0 +1,9 @@
+# G4-11 (analysis/G4_PLAN.md): G4-8 + loss_unkneg. A-OSE / WI come from known-class scores on unknown objects; G4-8's
+# A-OSE detections are mostly low-score (0.05-0.3) duplicates on large unknowns, which the VFL barely penalises
+# (negative weight alpha * p^gamma). From epoch 9, per decoder layer, queries on a pseudo-unknown box (IoU >= 0.5, < 0.5
+# to every known GT, not matched to a known GT) get plain BCE towards 0 on their max known-class logit.
+__include__: ['./g4_8.yml']
+output_dir: ./outputs/g4_11
+OWCriterion:
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_obj: 0.3, loss_unk: 1, loss_quality: 1, loss_ncobj: 0.05, loss_primary: 1, loss_unkneg: 1}
+  unkneg_iou: 0.5

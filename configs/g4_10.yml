@@ -1,0 +1,13 @@
+# G4-10 (analysis/G4_PLAN.md): G4-9 fixed. In G4-9 the one-to-many group (encoder top-600) was an exact copy of the 600
+# one-to-one queries (same proposals, same self-attention context -> identical outputs) and got contradictory targets,
+# so the one-to-one head emitted known duplicates (closed-set Known AP50 -2.3). Here the group is the top-1800 (3x the
+# one-to-one queries, as G4-3: 300 / 900), so its context differs. Trained on 2 GPUs (scripts/train_ddp.sh, 8 images
+# per GPU, total batch 16 and sync_bn as single-GPU training).
+__include__: ['./g4_8.yml']
+output_dir: ./outputs/g4_10
+OWRTDETRTransformerv2:
+  o2m_queries: 1800
+OWCriterion:
+  o2m_k: 3
+  o2m_weight: 1.0
+  o2m_known_slots: 20
