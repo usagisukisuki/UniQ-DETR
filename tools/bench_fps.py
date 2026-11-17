@@ -37,7 +37,7 @@ def main():
     ap.add_argument('--iters', type=int, default=500)
     ap.add_argument('--pp', nargs='*', default=[], help='OWPostProcessor overrides, e.g. unk_self_iou=0.7 nms_iou=0.5')
     args = ap.parse_args()
-    pp = {k: float(v) for k, v in (a.split('=') for a in args.pp)}
+    pp = {k: None if v == 'None' else float(v) for k, v in (a.split('=') for a in args.pp)}
     cfg = YAMLConfig(args.config, OWPostProcessor=pp) if pp else YAMLConfig(args.config)
     model = cfg.model
     model.load_state_dict(torch.load(args.resume, map_location='cpu')['ema']['module'])

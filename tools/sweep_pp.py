@@ -34,12 +34,17 @@ def main():
     ap.add_argument('-c', '--config', required=True); ap.add_argument('-r', '--resume', required=True)
     ap.add_argument('--grid', nargs='+', required=True); ap.add_argument('--bs', type=int, default=32)
     ap.add_argument('--out', default=None)
+    ap.add_argument('--dec', nargs='*', default=[], help='OWRTDETRTransformerv2 overrides, e.g. unk_select=100')
     ap.add_argument('--floor', type=float, default=FLOOR, help='Known AP50 floor on the tune half (G4: 65.22)')
+    ap.add_argument('--full', action='store_true', help='also score every setting on the whole test set (as PROB)')
     args = ap.parse_args()
     floor = args.floor
     keys, vals = zip(*[(g.split('=')[0], [parse(v) for v in g.split('=')[1].split(',')]) for g in args.grid])
     settings = [dict(zip(keys, c)) for c in itertools.product(*vals)]
-    cfg = YAMLConfig(args.config, val_dataloader={'total_batch_size': args.bs})
+    dec_over = {k: parse(v) for k, v in (a.split('=') for a in args.dec)}
+    dec_over = {k: int(v) if isinstance(v, float) and v.is_integer() else v for k, v in dec_over.items()}
+    cfg = YAMLConfig(args.config, val_dataloader={'total_batch_size': args.bs},
+                     **({'OWRTDETRTransformerv2': dec_over} if dec_over else {}))
     model = cfg.model; model.load_state_dict(torch.load(args.resume, map_location='cpu')['ema']['module'])
     model = model.cuda().eval()
     base = dict(cfg.yaml_cfg['OWPostProcessor'])
@@ -48,7 +53,10 @@ def main():
     pps = [OWPostProcessor(num_classes=cfg.yaml_cfg['num_classes'], **{**base, **s}) for s in settings]
     gt = json.load(open(cfg.yaml_cfg['owod_eval']['gt_json'])); halves = split_gt(gt)
     half_of = {i['id']: h for h, g in halves.items() for i in g['images']}
-    evs = [{h: OWODEvaluator(halves[h], num_known=K) for h in halves} for _ in settings]
+    if args.full:
+        halves['full'] = gt
+    PK = cfg.yaml_cfg['owod_eval'].get('prev_known', 0)
+    evs = [{h: OWODEvaluator(halves[h], num_known=K, prev_known=PK) for h in halves} for _ in settings]
     with torch.no_grad():
         for x, tg in tqdm(cfg.val_dataloader, desc='test'):
             out = model(x.cuda()); sizes = torch.stack([t['orig_size'] for t in tg]).cuda()
@@ -56,19 +64,24 @@ def main():
             for pp, ev in zip(pps, evs):
                 for i, r in zip(ids, pp(out, sizes)):
                     ev[half_of[i]].update({i: r})
+                    if args.full:
+                        ev['full'].update({i: r})
     rows = []
     for s, ev in zip(settings, evs):
         row = dict(s)
         for h in halves:
             ev[h].accumulate(); st = ev[h].summarize(verbose=False)
-            row.update({f'{h}_{k}': st[k] for k in ('K_AP50', 'U_R50', 'WI', 'A_OSE', 'U_AP50')})
+            row.update({f'{h}_{k}': st[k] for k in ('K_AP50', 'U_R50', 'WI', 'A_OSE', 'U_AP50', 'PK_AP50', 'CK_AP50',
+                                                          'K_AP', 'K_AP75', 'U_AP', 'U_AP75', 'K2U', 'K2U_rate', 'PK_AP', 'CK_AP') if k in st})
         rows.append(row)
     fixed = [k for k in keys if k != 'unk_weight']
-    print('per setting: tune Known / U | report Known / U / WI / A-OSE')
+    print('per setting: tune Known / U | report Known / U / WI / A-OSE' + (' | full Known / U / WI / A-OSE' if args.full else ''))
     for r in rows:
         print('  ' + ' '.join(f'{k}={r[k]}' for k in keys) +
               f" | {r['tune_K_AP50']:5.2f} {r['tune_U_R50']:5.2f} | {r['report_K_AP50']:5.2f} {r['report_U_R50']:5.2f} "
-              f"{r['report_WI']:.4f} {r['report_A_OSE']:.0f}")
+              f"{r['report_WI']:.4f} {r['report_A_OSE']:.0f}"
+              + (f" | full {r['full_K_AP50']:5.2f} {r['full_U_R50']:5.2f} {r['full_WI']:.4f} {r['full_A_OSE']:.0f}"
+                 f" | AP {r['full_K_AP']:5.2f} U-AP {r['full_U_AP']:5.2f} K2U {r['full_K2U']:.0f} ({r['full_K2U_rate']:.2f}%)" if args.full else ''))
     print(f'\nselected w on tune (Known >= {floor:.2f}, max U-Recall) -> report:')
     groups = {}
     for r in rows:

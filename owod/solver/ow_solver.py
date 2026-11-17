@@ -69,7 +69,7 @@ class OWDetSolver(DetSolver):
 
     def _build_ow_evaluator(self):
         ecfg = self.cfg.yaml_cfg['owod_eval']
-        return OWODEvaluator(ecfg['gt_json'], num_known=ecfg.get('num_known', 20))
+        return OWODEvaluator(ecfg['gt_json'], num_known=ecfg.get('num_known', 20), prev_known=ecfg.get('prev_known', 0))
 
     def _evaluate(self):
         module = self.ema.module if self.ema else self.model

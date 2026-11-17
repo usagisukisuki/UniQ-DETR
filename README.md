@@ -2,6 +2,10 @@
   <img src="figs/logo.svg" alt="UniQ-DETR" width="600">
 </p>
 
+<p align="center">
+  <img src="analysis/figs/vis_uniq.png" alt="UniQ-DETR detections on M-OWODB Task 1 (blue: known, red: unknown)" width="100%">
+</p>
+
 
 ## Highlights
 
@@ -10,11 +14,16 @@ This is the official implementation of UniQ-DETR: **Real-Time Open-World Object 
 - **NMS Free：** 推論は元の RT-DETRv2 と同じく topk だけです。NMS も重複除去も使いません。
 - **Unique Queries：** クラスによらない 1 対 1 ヘッド r を持ちます。r は、物体ごとに代表のクエリを 1 個だけ選ぶように学習するので、未知物体の重複も NMS なしで抑えられます。
 - **Self-Supervised Pseudo-Labels：** 学習初期の自分自身を教師にして、未知物体の疑似ラベルを作ります。外部のモデル（SAM など）は使いません。
-- **Performance：** M-OWODB Task 1 で **U-Recall 30.76**（Known AP50 64.16）、**約 111 FPS** です（RTX 4090、fp32、バッチ 1）。U-Recall は、NMS ありの比較手法も含めて最高です（OW-DETR-RT は NMS 0.5 で 27.83）。
+- **Performance：** M-OWODB Task 1 で **U-Recall 29.92**（Known AP50 63.78）、**約 109 FPS** です（RTX 4090、fp32、バッチ 1）。パラメータ数は元の RT-DETRv2 から +8,223（+0.019%）だけです。U-Recall は、NMS ありの比較手法も含めて最高です（OW-DETR-RT は NMS 0.5 で 27.23）。
+
+<p align="center">
+  <img src="analysis/figs/params_rtdetrv2_vs_uniq.png" alt="RT-DETRv2 vs UniQ-DETR (model size and speed)" width="49%">
+  <img src="analysis/figs/acc_fps_urecall_map.png" alt="Accuracy vs. speed on M-OWODB Task 1" width="49%">
+</p>
 
 ## Records
 
-M-OWODB Task 1 の値です（report 側、推論はすべて topk のみ）。詳細は `analysis/G4_PLAN.md` にあります。
+開発中の M-OWODB Task 1 の記録です。推論設定を選ぶための半分割の report 側の値なので、下の Results（テスト全体）とは直接比べられません。推論はすべて topk のみです。詳細は `analysis/G4_PLAN.md` にあります。
 
 | 日付 | 段階 | 変更点 | Known AP50 | U-Recall |
 |---|---|---|---:|---:|
@@ -29,27 +38,31 @@ M-OWODB Task 1 の値です（report 側、推論はすべて topk のみ）。�
 
 評価の条件：
 - 1 画像 top-100 です。
-- テスト画像を名前の偶奇で 2 分割します。片方（tune 側）で推論設定を選び、もう片方（report 側）の値を示します。
+- 値はテスト全体（PROB と同じ評価）です。
+- 推論設定（w、NMS の IoU）は、テスト画像を名前の偶奇で 2 分割した片方（tune 側）で選びます。
 - 選ぶ基準は、UniQ-DETR が「tune 側の Known AP50 ≥ 63.5 のもとで U-Recall 最大」（w 12）、比較手法が「Known AP50 ≥ 61.51 のもとで U-Recall 最大」です。
 - 比較手法は、同じ RT-DETRv2・同じ学習レシピに移植したもの（`-RT`）です。値はそれぞれの最良の後処理でのものです（`analysis/G3_SUMMARY.md`）。
 
 | Method | Post-Pro. | Known AP50 | U-Recall | WI ↓ | A-OSE ↓ | FPS（fp32） |
 |---|---|---:|---:|---:|---:|---:|
-| **UniQ-DETR** | **topk** | 64.16 | **30.76** | 0.050 | 7,200 | 111 |
-| OW-DETR-RT | NMS (0.5) | 62.30 | 27.83 | 0.055 | 7,295 | 95〜98 |
-| CAT-RT | NMS (0.7) | 62.50 | 26.28 | 0.057 | 11,327 | 70 |
-| PROB-RT | NMS (0.7) | 62.26 | 24.66 | 0.070 | 4,812 | 93〜95 |
-| RandBox-RT | NMS (0.5) | 61.85 | 24.03 | 0.036 | 5,336 | 13.5※ |
-| OrthogonalDet-RT | NMS (0.5) | **65.22** | 19.45 | **0.029** | **1,993** | 12.0※ |
-| OW-DETR-RT | topk | 62.52 | 23.74 | 0.055 | 3,165 | 109〜114 |
-| PROB-RT | topk | 61.57 | 21.55 | 0.055 | 2,071 | 104〜109 |
-| CAT-RT | topk | 61.92 | 15.11 | 0.048 | 2,168 | 91 |
+| **UniQ-DETR** | **topk** | 63.78 | **29.92** | 0.055 | 14,507 | 109 |
+| OW-DETR-RT | NMS (0.5) | 61.92 | 27.23 | 0.055 | 14,952 | 96 |
+| CAT-RT | NMS (0.7) | 62.11 | 25.60 | 0.058 | 22,840 | 74 |
+| PROB-RT | NMS (0.7) | 62.54 | 24.04 | 0.072 | 9,612 | 91 |
+| RandBox-RT | NMS (0.5) | 61.88 | 23.34 | 0.036 | 10,823 | 13.2※ |
+| OrthogonalDet-RT | NMS (0.5) | **65.13** | 18.79 | **0.028** | **3,891** | 12.0※ |
+| OW-DETR-RT | topk | 62.29 | 23.11 | 0.055 | 6,310 | 110 |
+| PROB-RT | topk | 61.23 | 20.85 | 0.060 | 4,193 | 112 |
+| CAT-RT | topk | 61.79 | 14.56 | 0.049 | 4,300 | 89 |
+| RT-DETRv2（閉集合、参考） | topk | — | — | — | — | 112 |
 
 ※ RandBox 系は元の推論（格子状の箱 10,000 個、NMS 0.6）での値です。
 
+FPS は全手法を同じ GPU（RTX 4090）で続けて測った、3 回の中央値です（fp32、バッチ 1、640×640、後処理込み、`scripts/run_bench_fps_all.sh`）。
+
 注意点：
-- **w の選び方：** UniQ-DETR は Known AP50 を優先して、基準を ≥ 63.5 に上げて w 12 を選んでいます。比較手法と同じ基準（≥ 61.51）で選ぶと w 24 になり、Known 62.89・U-Recall 32.23・A-OSE 2,948 です。
-- **面積の項の公平性：** 未知スコアの面積の項を、比較手法にも掛けて確かめました。U-Recall の変化は −0.8〜+1.0pt で、最高が UniQ-DETR であることは変わりません。ただし、OrthogonalDet-RT の Known AP50 は 65.50 に上がります（`analysis/G4_PLAN.md` §6.6）。
+- **w の選び方：** UniQ-DETR は Known AP50 を優先して、基準を ≥ 63.5 に上げて w 12 を選んでいます。比較手法と同じ基準（≥ 61.51）で選ぶと w 24 になり、Known 62.63・U-Recall 31.36・A-OSE 5,889 です。
+- **面積の項の公平性：** 未知スコアの面積の項を、比較手法にも掛けて確かめました。U-Recall の変化は −0.8〜+1.0pt で、最高が UniQ-DETR であることは変わりません。ただし、OrthogonalDet-RT の Known AP50 は 65.50 に上がります（report 側の値、`analysis/G4_PLAN.md` §6.6）。
 - **未達の目標：** Known AP50 は、OrthogonalDet-RT に及びません。
 
 ## Methods
@@ -102,7 +115,7 @@ M-OWODB Task 1 の値です（report 側、推論はすべて topk のみ）。�
 
 - クエリを増やすと、未知物体を覆う候補が増えます。デコーダ候補の網羅率は、300 クエリの 47% から、600 クエリでは 59% になります（G4-6）。重複は r が抑えるので、topk のままでも U-Recall が上がります。
 - エンコーダも疑似ラベルで学習すると、未知物体の提案がクエリに選ばれるようになります（900 クエリで、選ばれた提案が覆う中くらいの未知物体 65.0% → 72.8%、大きい未知物体 87.3% → 95.0%）。
-- そのため、推論でクエリを増やす必要がなくなりました。学習と同じ 600 クエリの方が 900 クエリより良い結果です（U-Recall 30.76 / 29.89）。
+- そのため、推論でクエリを増やす必要がなくなりました。学習と同じ 600 クエリの方が 900 クエリより良い結果です（report 側の U-Recall 30.76 / 29.89）。
 
 ### 4. 推論のスコア
 
@@ -201,8 +214,8 @@ uv run python tools/make_pseudo_unk.py -c configs/e2_obj.yml -r outputs/e2_pilot
 # 4. 学習（600 クエリ、r とエンコーダも疑似ラベルで学習）-> outputs/g4_8/best.pth
 uv run python tools/train.py -c configs/g4_8.yml
 
-# 5. 評価（600 クエリ、tune / report の 2 分割、report 側の値を表示）
-uv run python tools/sweep_pp.py -c configs/uniq_detr.yml -r outputs/g4_8/best.pth --grid unk_weight=12,24
+# 5. 評価（600 クエリ、w は tune 側で選び、テスト全体の値を表示）
+uv run python tools/sweep_pp.py -c configs/uniq_detr.yml -r outputs/g4_8/best.pth --full --grid unk_weight=12,24
 
 # 6. 速度（バッチ 1、モデル＋後処理、fp32 と AMP）
 uv run python tools/bench_fps.py -c configs/uniq_detr.yml -r outputs/g4_8/best.pth
@@ -210,7 +223,7 @@ uv run python tools/bench_fps.py -c configs/uniq_detr.yml -r outputs/g4_8/best.p
 
 - `scripts/run_g4_8.sh` は、手順 4 とその後の推論設定の掃引・分析をまとめて行います。
 - `-u key=value` で、YAML の設定を上書きできます。
-- テスト全体で評価するだけなら、`tools/train.py -c configs/uniq_detr.yml --test-only -r outputs/g4_8/best.pth` です。2 分割しないので、上の表の値とは少し違います。
+- テスト全体で評価するだけなら、`tools/train.py -c configs/uniq_detr.yml --test-only -r outputs/g4_8/best.pth` です（Results の表と同じ値）。
 
 ### Configs
 
@@ -249,8 +262,8 @@ uv run python tools/bench_fps.py -c configs/uniq_detr.yml -r outputs/g4_8/best.p
 
 ## TODO
 
-- [ ] **Known AP50 の向上：** OrthogonalDet-RT の 65.22 にはまだ届いていません。閉集合でも 64.06 なので、検出器そのものを強くする必要があります。
-- [ ] **A-OSE の増加：** G4-8 で A-OSE が 3,656 → 7,200 に増えました。原因を調べています（`tools/diag_aose.py`）。
+- [ ] **Known AP50 の向上：** OrthogonalDet-RT の 65.13 にはまだ届いていません。閉集合でも 64.06 なので、検出器そのものを強くする必要があります。
+- [ ] **A-OSE の増加：** G4-8 で A-OSE が 3,656 → 7,200 に増えました（report 側）。原因を調べています（`tools/diag_aose.py`）。
 - [ ] **小さい未知物体：** エンコーダの全提案でも 57% しか覆えていません。エンコーダの箱の回帰が課題です（`tools/diag_small_cov.py`）。
 - [x] **G4-6：** r の学習に疑似ラベルの箱も入れました（U-Recall 28.69 → 29.63）。
 - [x] **疑似ラベルの更新・数：** 更新の模擬（`tools/sim_pseudo_update.py`）と、数を増やした学習（G4-7）では改善しませんでした（`analysis/G4_PLAN.md`）。

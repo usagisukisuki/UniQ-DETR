@@ -1,0 +1,11 @@
+# G4-12 (analysis/UNK_MISS_ANALYSIS.md 5.2 A): G4-8 + a dense loss over every encoder proposal. The encoder losses act
+# only on the 600 selected proposals, so unknown objects whose proposals rank low (median rank 1,556 for the medium ones
+# lost at query selection) never get a positive. Every proposal with IoU >= 0.5 to a known GT or pseudo-unknown box (and
+# each GT's best proposal) becomes its positive: VFL + L1 + GIoU, no negatives on the unknown column.
+__include__: ['./g4_8.yml']
+output_dir: ./outputs/g4_12
+OWRTDETRTransformerv2:
+  enc_dense: True
+OWCriterion:
+  enc_dense_weight: 1.0
+  enc_dense_iou: 0.5

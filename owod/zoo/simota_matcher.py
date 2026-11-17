@@ -47,7 +47,12 @@ class SimOTAMatcher(nn.Module):
             am = cost[multi].argmin(1)
             mm[multi] = 0
             mm[multi, am] = 1
-        while (mm.sum(0) == 0).any():
+        # a NaN cost (argmin picks NaN) or a GT with every row already used never left this loop (2026-11-13/14 hangs
+        # of RandBox-RT / OrthogonalDet-RT Task 4); NaN -> large cost, and after Q rounds unmatched GTs stay unmatched
+        cost = torch.nan_to_num(cost, nan=1e8, posinf=1e8)
+        for _ in range(Q):
+            if not (mm.sum(0) == 0).any():
+                break
             cost = cost + (mm.sum(1, keepdim=True) > 0) * 1e5
             for g in torch.nonzero(mm.sum(0) == 0).squeeze(1):
                 mm[cost[:, g].argmin(), g] = 1.

@@ -1,0 +1,34 @@
+# UniQ-DETR, M-OWODB Task 4 stage 2 (README, Tasks 2-4; PROB protocol): fine-tuning of stage 1 on ORE's balanced
+# exemplar set owod_t4_ft, all 80 known classes labelled, 70 epochs at the Task-1 lr with a 0.1x drop after 50
+# epochs (PROB t4_ft). Pseudo-unknown boxes from the E2 epoch-2 teacher minus the GT.
+__include__: ['./uniq_t4_train.yml']
+output_dir: ./outputs/uniq_t4/ft
+epoches: 70
+optimizer:
+  type: AdamW
+  params:
+    -
+      params: '^(?=.*backbone)(?!.*norm).*$'
+      lr: 0.00001
+    -
+      params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
+      weight_decay: 0.
+  lr: 0.0001
+  betas: [0.9, 0.999]
+  weight_decay: 0.0001
+
+lr_scheduler:
+  type: MultiStepLR
+  milestones: [50]
+  gamma: 0.1
+lr_warmup_scheduler:
+  type: LinearWarmup
+  warmup_duration: 500
+train_dataloader:
+  dataset:
+    ann_file: data/pseudo_unk/t4_ft_e2ep2_cons_k5.json
+    transforms:
+      policy:
+        epoch: 68
+  collate_fn:
+    stop_epoch: 68

@@ -82,6 +82,9 @@ class OWRTDETRTransformerv2(RTDETRTransformerv2):
                  random_min_wh=0.02,           # RandBox: lower bound on w, h (zero-size boxes break inverse_sigmoid)
                  polar_head=False,             # OrthogonalDet: polar (radius = objectness, angle = class) head
                  polar_slots=80,               # OrthogonalDet: known class slots (80 as in the original; 20 used)
+                 enc_dense=False,              # G4-12: training outputs carry every encoder proposal (dense loss)
+                 unk_select=0,                 # UNK_MISS D: query slots reserved for the unknown column (last), 0 = off
+                 unk_select_base='all',        # UNK_MISS D: the other slots by max over all columns ('all') or known only
                  ):
         assert query_select_method in ('default', 'one2many', 'agnostic', 'objectness')
         super().__init__(
@@ -94,6 +97,9 @@ class OWRTDETRTransformerv2(RTDETRTransformerv2):
             eval_idx=eval_idx, eps=eps, aux_loss=aux_loss, cross_attn_method=cross_attn_method,
             query_select_method='default' if query_select_method == 'objectness' else query_select_method)
         self.query_select_method = query_select_method
+        assert unk_select_base in ('all', 'known')
+        self.unk_select, self.unk_select_base = unk_select, unk_select_base
+        self.enc_dense = enc_dense
         self.use_objectness = use_objectness
         if query_select_method == 'objectness':
             assert use_objectness, 'C4 (objectness query selection) requires C1/C2'
@@ -198,6 +204,9 @@ class OWRTDETRTransformerv2(RTDETRTransformerv2):
                 aux['pred_obj'] = enc_d2.gather(1, topk_ind)
                 aux['pred_embed'] = enc_topk_memory
                 aux['obj_key'] = 'enc'
+            if self.enc_dense:
+                aux['enc_dense'] = (enc_outputs_logits, F.sigmoid(enc_outputs_coord_unact),
+                                    valid_mask[..., 0].expand(enc_outputs_logits.shape[:2]))
             enc_aux.append(aux)
 
         if self.learn_query_content:
@@ -219,6 +228,14 @@ class OWRTDETRTransformerv2(RTDETRTransformerv2):
         return content, enc_topk_bbox_unact, enc_aux
 
     def _topk_index(self, logits):
+        if self.query_select_method == 'default' and self.unk_select > 0:
+            # UNK_MISS D (analysis/UNK_MISS_ANALYSIS.md): top (num_queries - unk_select) by the class score, then the top unk_select remaining by the
+            # unknown column, so known-looking proposals cannot take every slot
+            n = self.num_queries - self.unk_select
+            base = logits.max(-1).values if self.unk_select_base == 'all' else logits[..., :-1].max(-1).values
+            ind = torch.topk(base, n, dim=-1)[1]
+            unk = logits[..., -1].scatter(1, ind, float('-inf'))
+            return torch.cat([ind, torch.topk(unk, self.unk_select, dim=-1)[1]], dim=1)
         if self.query_select_method == 'default':
             return torch.topk(logits.max(-1).values, self.num_queries, dim=-1)[1]
         if self.query_select_method == 'one2many':

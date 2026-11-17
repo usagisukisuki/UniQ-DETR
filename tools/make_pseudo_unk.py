@@ -15,6 +15,11 @@ Two modes:
   # round 2 with an open-world teacher ranked by its own unknown score (analysis/G4_PLAN.md 6.6)
   uv run python tools/make_pseudo_unk.py -c configs/g4_4.yml -r outputs/g4_4/best.pth --num-known 20 --rank unk \
       --area-exp 0.25 --pp unk_r_gamma=0.5 --ann data/v1_probe/coco_train_probe3000.json --ks 5 10
+  # Tasks 2-4 (README): t{t}_train labels only the classes new in task t, so objects of the earlier classes are not in
+  # the GT; --exclude-* drops candidates on the previous task's model's confident known detections as well
+  uv run python tools/make_pseudo_unk.py -c configs/e2_obj.yml -r outputs/e2_pilot_bn/last.pth --num-known 40 \
+      --ann data/mowodb/t2_train.json --out-prefix data/pseudo_unk/t2_train_e2ep2_cons --ks 5 \
+      --exclude-config configs/uniq_detr.yml --exclude-ckpt outputs/g4_8/best.pth --exclude-known 20
 """
 import argparse
 import copy
@@ -41,12 +46,14 @@ def boxes_of(anns):
                          for a in anns], dtype=torch.float32).reshape(-1, 4)
 
 
-def predict(cfg, ckpt, gt, kmax, K=None, rank='cons', area_exp=0.0):
+def predict(cfg, ckpt, gt, kmax, K=None, rank='cons', area_exp=0.0, excl=None):
     """image_id -> (boxes xyxy in original pixels [n, 4], ranking score [n], flip consistency [n], max known p [n]),
     sorted by the ranking score, n <= kmax.
 
     rank: 'cons' = flip consistency; 'unk' = the teacher's own unknown score (OWPostProcessor.scores x area^area_exp,
-    for an open-world teacher such as G4-4); 'cons_unk' = their product."""
+    for an open-world teacher such as G4-4); 'cons_unk' = their product.
+    excl = (model, known classes, score threshold): candidates with IoU >= 0.5 to that model's known detections
+    (max p over its known logits >= threshold) are dropped too."""
     state = torch.load(ckpt, map_location='cpu')
     model = cfg.model
     model.load_state_dict(state['ema']['module'])
@@ -62,6 +69,7 @@ def predict(cfg, ckpt, gt, kmax, K=None, rank='cons', area_exp=0.0):
             x = x.cuda()
             out = model(x)
             outf = model(x.flip(-1))
+            outx = excl[0](x) if excl else None
             for j, t in enumerate(tg):
                 iid = t['image_id'].item()
                 w, h = t['orig_size'].tolist()
@@ -72,6 +80,9 @@ def predict(cfg, ckpt, gt, kmax, K=None, rank='cons', area_exp=0.0):
                 fb[:, 0] = 1 - fb[:, 0]                      # un-flip cx
                 fb = xyxy(fb)
                 gk = boxes_of([a for a in anns[iid] if a['category_id'] < K])
+                if excl:
+                    p = outx['pred_logits'][j, :, :excl[1]].float().sigmoid().max(-1).values.cpu()
+                    gk = torch.cat([gk, xyxy(outx['pred_boxes'][j])[p >= excl[2]]])
                 free = (iou(db, gk).max(1).values < 0.5) if len(gk) else torch.ones(len(db), dtype=torch.bool)
                 b = db[free]
                 cons = iou(b, fb).max(1).values if len(b) else torch.zeros(0)
@@ -144,13 +155,22 @@ def main():
     ap.add_argument('--dump', default=None, help='save {image_id: (boxes, score, flip cons, max known p)} (top max(ks)) '
                     'for tools/sim_pseudo_update.py instead of scoring / writing')
     ap.add_argument('--pp', nargs='*', default=[], help='OWPostProcessor overrides for --rank unk, e.g. unk_r_gamma=0.5')
+    ap.add_argument('--exclude-config', default=None, help="previous task's model: its known detections are not unknown")
+    ap.add_argument('--exclude-ckpt', default=None)
+    ap.add_argument('--exclude-known', type=int, default=None, help="that model's known classes")
+    ap.add_argument('--exclude-thr', type=float, default=0.3)
     args = ap.parse_args()
     vd = {'total_batch_size': args.bs, 'shuffle': False,
           'dataset': {'ann_file': args.ann, 'split': 'test'}}
     pp = {k: float(v) for k, v in (a.split('=') for a in args.pp)}
     cfg = YAMLConfig(args.config, val_dataloader=vd, **({'OWPostProcessor': pp} if pp else {}))
     gt = json.load(open(args.ann))
-    res, K = predict(cfg, args.resume, gt, max(args.ks), args.num_known, args.rank, args.area_exp)
+    excl = None
+    if args.exclude_config:
+        em = YAMLConfig(args.exclude_config).model
+        em.load_state_dict(torch.load(args.exclude_ckpt, map_location='cpu')['ema']['module'])
+        excl = (em.cuda().eval(), args.exclude_known, args.exclude_thr)
+    res, K = predict(cfg, args.resume, gt, max(args.ks), args.num_known, args.rank, args.area_exp, excl)
     print(f'== {args.resume} on {args.ann} (rank {args.rank}, area^{args.area_exp:g})', flush=True)
     if args.dump:
         torch.save(res, args.dump)

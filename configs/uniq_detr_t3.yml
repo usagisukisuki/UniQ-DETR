@@ -1,0 +1,8 @@
+# UniQ-DETR inference for Task 3 (README): the Task-1 settings (configs/uniq_detr.yml, w 12) on the Task-3 model
+# (configs/uniq_t3_ft.yml, outputs/uniq_t3/ft/last.pth).
+__include__: ['./uniq_t3_ft.yml']
+OWPostProcessor:
+  unk_r_gamma: 1.0
+  unk_q_exp: 1.0
+  unk_area_exp: 0.25
+  unk_weight: 12.0

@@ -69,6 +69,13 @@ RandBox (randbox_unk_k > 0; docs/baselines/RANDBOX_SPEC.md): with the one-to-man
     number of matched queries (one-to-many), as in RandBox.
 C3: among unmatched queries, the k_bg with the highest objectness (smallest d2) are
     excluded from the background (all-zero target) classification loss.
+G4-12 (enc_dense_weight > 0; analysis/UNK_MISS_ANALYSIS.md 5.2 A): the encoder losses act only on the num_queries
+    selected proposals, so an unknown object whose proposals rank low never receives a positive and stays low. An extra
+    dense loss over every valid proposal (outputs['enc_aux_outputs'][0]['enc_dense']): a proposal is a positive of the
+    GT (known + pseudo-unknown, as the encoder matching) it overlaps most when IoU >= enc_dense_iou, and each GT's
+    best-overlapping proposal is always one. VFL (target = IoU) + L1 + GIoU on the positives, normalised by their
+    number. Unless enc_dense_unk_neg, the unknown column has no negatives here (most unknown objects carry no pseudo
+    box; its background suppression stays with the one-to-one encoder loss).
 """
 
 import collections
@@ -83,6 +90,16 @@ from src.core import register
 from src.misc.dist_utils import get_world_size, is_dist_available_and_initialized
 from src.zoo.rtdetr.box_ops import box_cxcywh_to_xyxy, box_iou
 from src.zoo.rtdetr.rtdetrv2_criterion import RTDETRCriterionv2
+
+
+def _paired_giou(a, b):
+    """GIoU of a[i] with b[i] (xyxy), without the pairwise matrix."""
+    lt, rb = torch.max(a[:, :2], b[:, :2]), torch.min(a[:, 2:], b[:, 2:])
+    inter = (rb - lt).clamp(min=0).prod(1)
+    union = (a[:, 2:] - a[:, :2]).prod(1) + (b[:, 2:] - b[:, :2]).prod(1) - inter
+    iou = inter / union
+    hull = (torch.max(a[:, 2:], b[:, 2:]) - torch.min(a[:, :2], b[:, :2])).clamp(min=0).prod(1)
+    return iou - (hull - union) / hull
 
 __all__ = ['OWCriterion']
 
@@ -128,6 +145,9 @@ class OWCriterion(RTDETRCriterionv2):
                  pseudo_dup_neg_iou=0.0,    # B2: duplicates of a pseudo positive -> unk target 0 (0 = off)
                  pseudo_ext_iou=0.5,        # G4-1: min IoU between a pseudo box and its positive query
                  unkneg_iou=0.5,            # G4-11: loss_unkneg on queries with IoU >= this to a pseudo box (< to known GT)
+                 enc_dense_weight=0.0,      # G4-12: dense loss over every encoder proposal (0 = off)
+                 enc_dense_iou=0.5,         # G4-12: proposal IoU with a GT to be its positive
+                 enc_dense_unk_neg=False,   # G4-12: also negatives on the unknown column in the dense loss
                  o2m_k=0,                   # G4-3: GT repeats for the one-to-many group (0 = off)
                  o2m_weight=1.0,            # G4-3: weight of the one-to-many losses
                  o2m_known_slots=None,      # G4-3: classification columns used by the one-to-many VFL (None = all)
@@ -167,6 +187,7 @@ class OWCriterion(RTDETRCriterionv2):
         self.pseudo_dup_neg_iou = pseudo_dup_neg_iou
         self.pseudo_ext_iou = pseudo_ext_iou
         self.unkneg_iou = unkneg_iou
+        self.enc_dense_weight, self.enc_dense_iou, self.enc_dense_unk_neg = enc_dense_weight, enc_dense_iou, enc_dense_unk_neg
         self.o2m_k = o2m_k
         self.o2m_weight = o2m_weight
         self.o2m_known_slots = o2m_known_slots
@@ -644,6 +665,47 @@ class OWCriterion(RTDETRCriterionv2):
             self.num_classes = orig
         return losses
 
+    def _enc_dense_losses(self, logits, boxes, valid, targets):
+        """G4-12: logits [B, L, C], boxes [B, L, 4] (cxcywh, sigmoid), valid [B, L]; targets with known + pseudo GT."""
+        onehot, score = torch.zeros_like(logits), torch.zeros_like(logits)
+        src, tgt = [], []
+        for b, t in enumerate(targets):
+            T = len(t['boxes'])
+            if not T:
+                continue
+            iou = box_iou(box_cxcywh_to_xyxy(boxes[b].detach()), box_cxcywh_to_xyxy(t['boxes']))[0]
+            iou = iou.masked_fill(~valid[b, :, None], 0)
+            m, j = iou.max(1)
+            pos = m >= self.enc_dense_iou
+            best = iou.argmax(0)
+            pos[best] = True
+            j[best] = torch.arange(T, device=j.device)
+            m[best] = iou[best, torch.arange(T, device=j.device)]
+            p = pos.nonzero().squeeze(1)
+            onehot[b, p, t['labels'][j[p]]] = 1
+            score[b, p, t['labels'][j[p]]] = m[p].to(score.dtype)
+            src.append(boxes[b, p]); tgt.append(t['boxes'][j[p]])
+        num_pos = torch.as_tensor([float(onehot.sum().item())], device=logits.device)
+        if is_dist_available_and_initialized():
+            torch.distributed.all_reduce(num_pos)
+        num_pos = torch.clamp(num_pos / get_world_size(), min=1).item()
+        weight = self.alpha * F.sigmoid(logits).detach().pow(self.gamma) * (1 - onehot) + score
+        if not self.enc_dense_unk_neg:
+            weight[..., -1] = weight[..., -1] * onehot[..., -1]
+        weight = weight * valid[..., None].to(weight.dtype)
+        vfl = F.binary_cross_entropy_with_logits(logits, score, weight=weight, reduction='sum') / num_pos
+        if src:
+            src, tgt = torch.cat(src), torch.cat(tgt)
+            l1 = F.l1_loss(src, tgt, reduction='sum') / num_pos
+            # element-wise (positives can number tens of thousands; the pairwise matrix does not fit)
+            giou = (1 - _paired_giou(box_cxcywh_to_xyxy(src), box_cxcywh_to_xyxy(tgt))).sum() / num_pos
+        else:
+            l1 = giou = logits.sum() * 0
+        w = self.enc_dense_weight
+        return {'loss_enc_dense_vfl': w * self.weight_dict['loss_vfl'] * vfl,
+                'loss_enc_dense_bbox': w * self.weight_dict['loss_bbox'] * l1,
+                'loss_enc_dense_giou': w * self.weight_dict['loss_giou'] * giou}
+
     def _pseudo(self, outputs, targets, indices, attn_map, heads=None):
         if self.pseudo_score == 'ext':
             if self._ext_boxes is None or self._epoch < self.attn_pseudo_start:
@@ -728,6 +790,9 @@ class OWCriterion(RTDETRCriterionv2):
                 self._e_step(aux, indices, heads)
                 ignore = self._bg_ignore_mask(aux, indices) if self.bg_ignore_enc else None
                 losses.update(self._apply_losses(aux, enc_targets, indices, enc_num_boxes, f'_enc_{i}', ignore))
+            dense = outputs['enc_aux_outputs'][0].get('enc_dense') if outputs['enc_aux_outputs'] else None
+            if self.enc_dense_weight > 0 and dense is not None and not class_agnostic:
+                losses.update(self._enc_dense_losses(*dense, match_targets))
             if class_agnostic:
                 self.num_classes = orig_num_classes
 

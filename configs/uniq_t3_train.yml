@@ -1,0 +1,43 @@
+# UniQ-DETR, M-OWODB Task 3 stage 1 (README, Tasks 2-4; PROB protocol): from the Task-2 model with the classifier
+# grown to 60 known classes (tools/expand_classes.py), 10 epochs on owod_t3_train labelled with Task 3's 20
+# classes only, lr 0.1x (PROB: 2e-5 vs 2e-4). Pseudo-unknown boxes from the same E2 epoch-2 teacher as Task 1, minus
+# candidates on the GT and on the Task-2 model's known detections (tools/make_pseudo_unk.py --exclude-*), active
+# from the start. Everything else is G4-8 (UniQ-DETR).
+__include__: ['./g4_8.yml']
+output_dir: ./outputs/uniq_t3/train
+num_classes: 61
+epoches: 10
+owod_eval:
+  num_known: 60
+  prev_known: 40
+OWRTDETRTransformerv2:
+  pseudo_label: 60
+OWPostProcessor:
+  known_slots: 60
+OWCriterion:
+  attn_pseudo_start: 0
+optimizer:
+  type: AdamW
+  params:
+    -
+      params: '^(?=.*backbone)(?!.*norm).*$'
+      lr: 0.000001
+    -
+      params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
+      weight_decay: 0.
+  lr: 0.00001
+  betas: [0.9, 0.999]
+  weight_decay: 0.0001
+
+train_dataloader:
+  dataset:
+    ann_file: data/pseudo_unk/t3_train_e2ep2_cons_k5.json
+    num_known: 60
+    transforms:
+      policy:
+        epoch: 8
+  collate_fn:
+    stop_epoch: 8
+val_dataloader:
+  dataset:
+    num_known: 60
