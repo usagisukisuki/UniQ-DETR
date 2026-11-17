@@ -17,8 +17,10 @@ This is the official implementation of UniQ-DETR: **Real-Time Open-World Object 
 - **Performance：** M-OWODB Task 1 で **U-Recall 29.92**（Known AP50 63.78）、**約 109 FPS** です（RTX 4090、fp32、バッチ 1）。パラメータ数は元の RT-DETRv2 から +8,223（+0.019%）だけです。U-Recall は、NMS ありの比較手法も含めて最高です（OW-DETR-RT は NMS 0.5 で 27.23）。
 
 <p align="center">
-  <img src="analysis/figs/params_rtdetrv2_vs_uniq.png" alt="RT-DETRv2 vs UniQ-DETR (model size and speed)" width="49%">
-  <img src="analysis/figs/acc_fps_urecall_map.png" alt="Accuracy vs. speed on M-OWODB Task 1" width="49%">
+  <img src="analysis/figs/params_rtdetrv2_vs_uniq.png" alt="RT-DETRv2 vs UniQ-DETR (model size and speed)" width="100%">
+</p>
+<p align="center">
+  <img src="analysis/figs/acc_fps_urecall_map.png" alt="Accuracy vs. speed on M-OWODB Task 1" width="100%">
 </p>
 
 ## Records
